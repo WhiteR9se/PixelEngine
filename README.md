@@ -64,6 +64,7 @@ Retro 2D Game Engine Build Entirely in C
   b) Plugin
   c) IO
   d) Build system for linux
+  e) Signifier for Exported/Imported Functions in Library
 2. Get the first triangle on the screen
   a) SDL3 plugin
   b) Simple 2D Rendering
