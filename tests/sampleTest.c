@@ -2,6 +2,6 @@
 
 int main(int argc, char *argv[])
 {
-  sample();
+  sampleExported();
   return 0;
 }

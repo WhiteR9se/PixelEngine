@@ -11,7 +11,7 @@ BUILD_DIR     := .build/$(MODE)
 
 # - - - Compiler & Flags - - -
 CC            := clang
-COMMON_FLAGS  := -std=c11 -Wall -Werror -Wpedantic -fPIC
+COMMON_FLAGS  := -std=c11 -Wall -Werror -Wpedantic -fPIC -fvisibility=hidden
 DEBUG_FLAGS   := -O0 -g
 RELEASE_FLAGS := -O3
 
@@ -90,9 +90,9 @@ $(KERNEL_LIB): $(KERNEL_OBJS)
 	done
 	@echo ""
 
-$(MAIN_BINS): $(BIN_DIR)/%: $(BUILD_DIR)/$(SRC_DIR)/%.o $(COMMON_OBJS) | $(KERNEL_LIB)
+$(MAIN_BINS): $(BIN_DIR)/%: $(BUILD_DIR)/$(SRC_DIR)/%.o $(COMMON_OBJS) $(KERNEL_LIB)
 	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) $(filter %.o, $^) -L$(BIN_DIR) -lkernel -Wl,-rpath=$(abspath $(BIN_DIR)) -o $@
+	@$(CC) $(CFLAGS) $(BUILD_DIR)/$(SRC_DIR)/$*.o $(COMMON_OBJS) -L$(BIN_DIR) -lkernel -Wl,-rpath=$(abspath $(BIN_DIR)) -o $@
 	@echo ""
 	@echo "[BINARY]: $@"
 	@echo "  ├── $(BUILD_DIR)/$(SRC_DIR)/$*.o"
@@ -102,9 +102,9 @@ $(MAIN_BINS): $(BIN_DIR)/%: $(BUILD_DIR)/$(SRC_DIR)/%.o $(COMMON_OBJS) | $(KERNE
 	@echo "  └── $(KERNEL_LIB)"
 	@echo ""
 
-$(TEST_BINS): $(BIN_DIR)/tests/%: $(BUILD_DIR)/$(TEST_DIR)/%.o $(COMMON_OBJS) | $(KERNEL_LIB)
+$(TEST_BINS): $(BIN_DIR)/tests/%: $(BUILD_DIR)/$(TEST_DIR)/%.o $(COMMON_OBJS) $(KERNEL_LIB)
 	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) $(filter %.o, $^) -L$(BIN_DIR) -lkernel -Wl,-rpath=$(abspath $(BIN_DIR)) -o $@
+	@$(CC) $(CFLAGS) $(BUILD_DIR)/$(TEST_DIR)/$*.o $(COMMON_OBJS) -L$(BIN_DIR) -lkernel -Wl,-rpath=$(abspath $(BIN_DIR)) -o $@
 	@echo ""
 	@echo "[TEST]: $@"
 	@echo "  ├── $(BUILD_DIR)/$(TEST_DIR)/$*.o"
@@ -114,11 +114,15 @@ $(TEST_BINS): $(BIN_DIR)/tests/%: $(BUILD_DIR)/$(TEST_DIR)/%.o $(COMMON_OBJS) | 
 	@echo "  └── $(KERNEL_LIB)"
 	@echo ""
 
+
 # - - - Object compilation rules - - -
+
+$(KERNEL_OBJS): CPPFLAGS += -DENGINE_EXPORT
 
 $(ALL_OBJS): $(BUILD_DIR)/%.o: %.c
 	@mkdir -p $(dir $@)
 	@echo "  [CC]   $<"
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
 
 -include $(HEADER_DEPS)

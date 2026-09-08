@@ -1,6 +1,12 @@
-#include <kernel/sample.h>
+#include <stdio.h>
+#include <kernel/defines.h>
 
-void sample(void)
+ENGINE_API void sampleExported(void)
 {
-  return;
+  printf("[KERNEL] : sampleExported() called successfully!\n");
+}
+
+void sampleHidden(void)
+{
+  printf("[KERNEL] : sampleHidden() called!\n");
 }
