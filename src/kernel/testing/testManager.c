@@ -29,7 +29,7 @@ typedef struct testGroup
 static TestGroup testGroups[MAX_GROUPS];
 static size_t    maxGroupID = 0;
 
-void testRegister(TestFunc TEST_FUNC, const char* DESCRIPTION, uint8_t GROUP_ID) 
+ENGINE_API void testRegister(TestFunc TEST_FUNC, const char* DESCRIPTION, uint8_t GROUP_ID) 
 {
   ASSERT_MESSAGE(TEST_FUNC != NULL, "[TEST MANAGER] : Test function cannot be NULL");
   ASSERT_MESSAGE(GROUP_ID < MAX_GROUPS, "[TEST MANAGER] : Exceeded maximum group ID limit");
@@ -92,7 +92,7 @@ static bool runTestForked(TestEntry TEST, uint8_t* OUT_RESULT)
 }
 #endif
 
-size_t forge_test_run_all(void) 
+ENGINE_API size_t testRunAll(void) 
 {
   size_t totalTests   = 0;
   size_t passedTests  = 0;

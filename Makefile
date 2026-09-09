@@ -16,6 +16,7 @@ DEBUG_FLAGS   := -O0 -g
 RELEASE_FLAGS := -O3
 
 CPPFLAGS      := -I$(INCLUDE_DIR) -MMD -MP
+LDFLAGS       := -L$(BIN_DIR) -Wl,-rpath=$(abspath $(BIN_DIR)) -lm
 
 ifeq ($(MODE),debug)
   CFLAGS   := $(COMMON_FLAGS) $(DEBUG_FLAGS)
@@ -32,7 +33,7 @@ $(info )
 
 # - - - File Finding - - -
 
-MAIN_SRCS   := $(SRC_DIR)/editor/editor.c
+MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/main.c
 KERNEL_SRCS := $(shell find $(SRC_DIR)/kernel -name '*.c')
 RAW_SRCS    := $(shell find $(SRC_DIR) -name '*.c')
 COMMON_SRCS := $(filter-out $(MAIN_SRCS) $(KERNEL_SRCS) , $(RAW_SRCS))
@@ -92,7 +93,7 @@ $(KERNEL_LIB): $(KERNEL_OBJS)
 
 $(MAIN_BINS): $(BIN_DIR)/%: $(BUILD_DIR)/$(SRC_DIR)/%.o $(COMMON_OBJS) $(KERNEL_LIB)
 	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) $(BUILD_DIR)/$(SRC_DIR)/$*.o $(COMMON_OBJS) -L$(BIN_DIR) -lkernel -Wl,-rpath=$(abspath $(BIN_DIR)) -o $@
+	@$(CC) $(CFLAGS) $(BUILD_DIR)/$(SRC_DIR)/$*.o $(COMMON_OBJS) -lkernel $(LDFLAGS) -o $@
 	@echo ""
 	@echo "[BINARY]: $@"
 	@echo "  ├── $(BUILD_DIR)/$(SRC_DIR)/$*.o"
@@ -104,7 +105,7 @@ $(MAIN_BINS): $(BIN_DIR)/%: $(BUILD_DIR)/$(SRC_DIR)/%.o $(COMMON_OBJS) $(KERNEL_
 
 $(TEST_BINS): $(BIN_DIR)/tests/%: $(BUILD_DIR)/$(TEST_DIR)/%.o $(COMMON_OBJS) $(KERNEL_LIB)
 	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) $(BUILD_DIR)/$(TEST_DIR)/$*.o $(COMMON_OBJS) -L$(BIN_DIR) -lkernel -Wl,-rpath=$(abspath $(BIN_DIR)) -o $@
+	@$(CC) $(CFLAGS) $(BUILD_DIR)/$(TEST_DIR)/$*.o $(COMMON_OBJS) -lkernel $(LDFLAGS) -o $@
 	@echo ""
 	@echo "[TEST]: $@"
 	@echo "  ├── $(BUILD_DIR)/$(TEST_DIR)/$*.o"

@@ -37,6 +37,7 @@ static const char*    memoryTagStrings[MEMORY_TAG_COUNT]          =
     [MEMORY_TAG_ARRAY]          = "ARRAY        ",
     [MEMORY_TAG_DYNAMIC_ARRAY]  = "DYNAMIC ARRAY",
     [MEMORY_TAG_STRING]         = "STRING       ",
+    [MEMORY_TAG_ECS_COMPONENT]  = "ECS COMPONENT",
     [MEMORY_TAG_UNKOWN]         = "UNKOWN       ",
   };
 static size_t         memoryTagAllocationLimit[MEMORY_TAG_COUNT]  =
@@ -44,6 +45,7 @@ static size_t         memoryTagAllocationLimit[MEMORY_TAG_COUNT]  =
     [MEMORY_TAG_ARRAY]         = MEMORY_LIMIT_DEFAULT,
     [MEMORY_TAG_DYNAMIC_ARRAY] = MEMORY_LIMIT_DEFAULT,
     [MEMORY_TAG_STRING]        = MEMORY_LIMIT_DEFAULT,
+    [MEMORY_TAG_ECS_COMPONENT] = MEMORY_LIMIT_DEFAULT,
     [MEMORY_TAG_UNKOWN]        = MEMORY_LIMIT_DEFAULT,
   };
 

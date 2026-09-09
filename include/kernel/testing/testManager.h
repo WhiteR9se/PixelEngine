@@ -6,6 +6,7 @@
  * @see https://github.com/Asher-Ul-Haque/ForgeLibrary
 */
 
+#include "kernel/defines.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -35,13 +36,13 @@ typedef uint8_t (*TestFunc)(void);
  * @param DESCRIPTION Short human-readable description of what the test verifies.
  * @param GROUP_ID to cluster tests together (0 by default). Tests in the same group run sequentially
 */
-void testRegister(TestFunc TEST_FUNC, const char* DESCRIPTION, uint8_t GROUP_ID);
+ENGINE_API void testRegister(TestFunc TEST_FUNC, const char* DESCRIPTION, uint8_t GROUP_ID);
 
 /**
  * @brief : Runs all registered tests and prints a formatted diagnostic summary 
  * @return : Returns total number of failed + crashed tests (0 if all passed / skipped)
 */
-size_t testRunAll(void);
+ENGINE_API size_t testRunAll(void);
 
 
 #ifdef __cplusplus

@@ -27,6 +27,7 @@ typedef enum memoryTag
   MEMORY_TAG_ARRAY,         ///< I want to make an array
   MEMORY_TAG_DYNAMIC_ARRAY, ///< I want to make a dynamic array
   MEMORY_TAG_STRING,        ///< I want to make a string
+  MEMORY_TAG_ECS_COMPONENT, ///< I want to make a component
   MEMORY_TAG_COUNT          ///< Represents total
 } MemoryTag;
 
