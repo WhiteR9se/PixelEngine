@@ -1,0 +1,335 @@
+#include <kernel/defines.h>
+#include <kernel/memory/tracker.h>
+#include <kernel/utils/assert.h>
+#include <kernel/utils/logger.h>
+#include <stdalign.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+
+// - - - Internal Structs - - -
+
+/**
+ * @brief : Struct that keeps track of allocations as a doubly linked list
+ * @warning : Aligned to 16 bytes
+*/
+alignas(max_align_t) struct memoryHeader
+{
+  size_t                requestedSize; ///< How much did the user ask to allocate
+  const char*           file;          ///< What file was the allocation in
+  const char*           func;          ///< What function was the allocation in
+  struct memoryHeader*  next;          ///< Pointer to the next allocation
+  struct memoryHeader*  prev;          ///< Pointer to the previous allocation
+  uint32_t              magic;         ///< Magic number, if overwritten, then there is a corruption
+  int32_t               line;          ///< What line was the allocation in
+  MemoryTag             tag;           ///< What was the allocation for
+};
+
+typedef struct memoryHeader MemoryHeader;
+
+static size_t         memoryTagAllocatedBytes[MEMORY_TAG_COUNT] = {0};
+static MemoryHeader*  memoryActiveAllocations                   = NULL;
+static const char*    memoryTagStrings[MEMORY_TAG_COUNT]        = 
+  {
+    [MEMORY_TAG_ARRAY]          = "ARRAY        ",
+    [MEMORY_TAG_DYNAMIC_ARRAY]  = "DYNAMIC ARRAY",
+    [MEMORY_TAG_STRING]         = "STRING       ",
+    [MEMORY_TAG_UNKOWN]         = "UNKOWN       ",
+  };
+
+// - - - Magic numbers
+#define MEMORY_HEADER_MAGIC 0xCAFEBABEU
+#define MEMORY_FOOTER_MAGIC 0xDEADBEEFU
+#define MEMORY_FREED_MAGIC  0xDDDDDDDDU
+
+
+// - - - Helper Functions - - -
+
+static inline uint8_t* memoryTrackerGetPayload(MemoryHeader* HEADER)
+{ return (uint8_t*)HEADER + sizeof(MemoryHeader); }
+
+static inline MemoryHeader* memoryTrackerGetHeader(void* PAYLOAD)
+{ return (MemoryHeader*) ((uint8_t*)PAYLOAD - sizeof(MemoryHeader)); }
+
+static inline uint32_t* memoryTrackerGetFooter(MemoryHeader* HEADER)
+{ return (uint32_t*)((uint8_t*)memoryTrackerGetPayload(HEADER) + HEADER->requestedSize); }
+
+
+// - - - Add and remove from linked list - - -
+
+static void memoryTrackerLinkNode(MemoryHeader* HEADER)
+{
+  HEADER->next = memoryActiveAllocations;
+  HEADER->prev = NULL;
+  if (memoryActiveAllocations != NULL)
+  {
+    memoryActiveAllocations->prev = HEADER;
+  }
+  memoryActiveAllocations = HEADER;
+
+  memoryTagAllocatedBytes[HEADER->tag] += HEADER->requestedSize;
+}
+
+static void memoryTrackerUnlinkNode(MemoryHeader* HEADER)
+{
+  if (HEADER->prev != NULL)
+  {
+    HEADER->prev->next = HEADER->next;
+  }
+  else
+  {
+    memoryActiveAllocations = HEADER->next;
+  }
+
+  if (HEADER->next != NULL)
+  {
+    HEADER->next->prev = HEADER->prev;
+  }
+
+  memoryTagAllocatedBytes[HEADER->tag] -= HEADER->requestedSize;
+}
+
+// - - - Check for memory corruption
+static bool memoryTrackerVerifyIntegrity(MemoryHeader* HEADER, const char* FILE, const char* FUNC, int32_t LINE)
+{
+  if (!HEADER) return false;
+
+  if (HEADER->magic == MEMORY_FREED_MAGIC)
+  {
+    LOG_FATAL("[ENGINE MEMORY TRACKER] : Use-after-free or double-free detected at %s:%d in %s! Pointer was previously freed.",
+              FILE, LINE, FUNC);
+    abort();
+  }
+
+  if (HEADER->magic != MEMORY_HEADER_MAGIC)
+  {
+    LOG_FATAL("[ENGINE MEMORY TRACKER] : Header canary at %s:%d in %s! Expected 0x%X, got 0x%X",
+              FILE, LINE, FUNC, MEMORY_HEADER_MAGIC, HEADER->magic);
+    abort();
+  }
+
+  uint32_t* footer = memoryTrackerGetFooter(HEADER);
+  uint32_t  footerVal;
+  memcpy(&footerVal, footer, sizeof(uint32_t));
+
+  if (footerVal != MEMORY_FOOTER_MAGIC)
+  {
+    LOG_FATAL("[ENGINE MEMORY TRACKER] : Buffer overflow detected! Tail canary overwritten for allocation of %zu bytes (origin: %s:%d in %s). Check triggered at %s:%d in %s.",
+              HEADER->requestedSize, HEADER->file, HEADER->line, HEADER->func, FILE, LINE, FUNC);
+    abort();
+  }
+
+  return true;
+}
+
+
+// - - - Engine API - - -
+
+ENGINE_API void* memoryTrackedMalloc(
+  size_t      SIZE,
+  const char* FILE,
+  const char* FUNC,
+  int32_t     LINE,
+  MemoryTag   TAG)
+{
+  ASSERT_DEBUG_MESSAGE(SIZE != 0, "[ENGINE MEMORY TRACKER] : Cannot allocate memory of SIZE 0");
+  ASSERT_DEBUG_MESSAGE(TAG != MEMORY_TAG_COUNT, "[ENGINE MEMORY TRACKER] : Cannot allocate memory with invalid TAG");
+
+  // - - - total size to malloc changes = HEADER + PAYLOAD + FOOTER
+  size_t totalSize = sizeof(MemoryHeader) + SIZE + sizeof(uint32_t);
+
+  MemoryHeader* header = (MemoryHeader*) malloc(totalSize);
+  if (!header)
+  {
+    LOG_FATAL("[ENGINE MEMORY TRACKER] : OOM allocating %zu bytes at %s:%d in function %s", SIZE, FILE, LINE, FUNC);
+    return NULL;
+  }
+
+  header->magic         = MEMORY_HEADER_MAGIC;
+  header->tag           = TAG;
+  header->file          = FILE;
+  header->func          = FUNC;
+  header->line          = LINE;
+  header->requestedSize = SIZE;
+
+  uint32_t footerMagic = MEMORY_FOOTER_MAGIC;
+  memcpy(memoryTrackerGetFooter(header), &footerMagic, sizeof(uint32_t));
+
+  memoryTrackerLinkNode(header);
+
+  return memoryTrackerGetPayload(header);
+}
+
+ENGINE_API void* memoryTrackedCalloc(
+  size_t      COUNT,
+  size_t      SIZE,
+  const char* FILE,
+  const char* FUNC,
+  int32_t     LINE,
+  MemoryTag   TAG
+)
+{
+  ASSERT_DEBUG_MESSAGE(COUNT  != 0, "[ENGINE MEMORY TRACKER] : Cannot callocate with a 0 COUNT");
+  ASSERT_DEBUG_MESSAGE(SIZE   != 0, "[ENGINE MEMORY TRACKER] : Cannot callocate with a 0 SIZE");
+  ASSERT_DEBUG_MESSAGE(TAG != MEMORY_TAG_COUNT, "[ENGINE MEMORY TRACKER] : Cannot callocate with invalid TAG");
+
+  size_t  totalBytes  = COUNT * SIZE;
+  void*   ptr         = memoryTrackedMalloc(totalBytes, FILE, FUNC, LINE, TAG);
+  if (ptr)    memset(ptr, 0, totalBytes);
+
+  return ptr;
+}
+
+ENGINE_API void* memoryTrackedRealloc(
+  void*       PTR,
+  size_t      NEW_SIZE,
+  const char* FILE,
+  const char* FUNC,
+  int32_t     LINE
+)
+{
+  ASSERT_DEBUG_MESSAGE(PTR != NULL, "[ENGINE MEMORY TRACKER] : Will not realloc NULL memory");
+  ASSERT_DEBUG_MESSAGE(NEW_SIZE != 0, "[ENGINE MEMORY TRACKER] : Cannot reallocate with 0 NEW_SIZE");
+
+  MemoryHeader* oldHeader = memoryTrackerGetHeader(PTR);
+  if (!memoryTrackerVerifyIntegrity(oldHeader, FILE, FUNC, LINE))
+  {
+    return NULL;
+  }
+
+  memoryTrackerUnlinkNode(oldHeader);
+
+  size_t        newTotalSize  = sizeof(MemoryHeader) + NEW_SIZE + sizeof(uint32_t);
+  MemoryHeader* newHeader     = (MemoryHeader*) realloc(oldHeader, newTotalSize);
+
+  if (!newHeader)
+  {
+    memoryTrackerLinkNode(oldHeader);
+    LOG_FATAL("[ENGINE MEMORY TRACKER] : OOM reallocating %zu bytes at %s:%d in function %s", NEW_SIZE, FILE, LINE, FUNC);
+    return NULL;
+  }
+
+  newHeader->requestedSize  = NEW_SIZE;
+  newHeader->file           = FILE;
+  newHeader->func           = FUNC;
+  newHeader->line           = LINE;
+
+  uint32_t footerMagic = MEMORY_FOOTER_MAGIC;
+  memcpy(memoryTrackerGetFooter(newHeader), &footerMagic, sizeof(uint32_t));
+
+  memoryTrackerLinkNode(newHeader);
+  return memoryTrackerGetPayload(newHeader);
+}
+
+ENGINE_API void memoryTrackedFree(
+  void*       PTR,
+  const char* FILE,
+  const char* FUNC,
+  int32_t     LINE)
+{
+  ASSERT_DEBUG_MESSAGE(PTR != NULL, "[ENGINE MEMORY TRACKER] : Cannot free a NULL PTR");
+
+  MemoryHeader* header = memoryTrackerGetHeader(PTR);
+  if (!memoryTrackerVerifyIntegrity(header, FILE, FUNC, LINE))
+  { return; }
+
+  memoryTrackerUnlinkNode(header);
+
+  header->magic = MEMORY_FREED_MAGIC;
+  uint32_t freedFooter = MEMORY_FREED_MAGIC;
+  memcpy(memoryTrackerGetFooter(header), &freedFooter, sizeof(uint32_t));
+
+  free(header);
+}
+
+ENGINE_API void memoryReportLeaks(void)
+{
+  if (memoryActiveAllocations == NULL)
+  {
+    LOG_INFO("[ENGINE MEMORY TRACKER] : No memory leaks detected. Clean exit.");
+    return;
+  }
+
+  size_t totalLeakedBytes = 0;
+  size_t leakCount        = 0;
+
+  LOG_ERROR("[ENGINE MEMORY TRACKER] : Memory Leaks Detected");
+  MemoryHeader* curr = memoryActiveAllocations;
+  while (curr != NULL)
+  {
+    leakCount++;
+    LOG_ERROR("[ENGINE MEMORY TRACKER] : Leak #%zu bytes | Tag: %s | Allocated at: %s:%d in function %s",
+              leakCount, curr->requestedSize, memoryTagStrings[curr->tag], curr->file, curr->line, curr->func);
+
+    totalLeakedBytes += curr->requestedSize;
+    curr              = curr->next;
+  }
+
+  LOG_ERROR("[ENGINE MEMORY TRACKER] : Total Leaked : %zu bytes across %zu allocations.", totalLeakedBytes, leakCount);
+}
+
+ENGINE_API bool memoryCheckBounds(void)
+{
+  bool allClean = true;
+  MemoryHeader* curr = memoryActiveAllocations;
+
+  while (curr != NULL)
+  {
+    if (!memoryTrackerVerifyIntegrity(curr, __FILE__, __func__, __LINE__))
+    { allClean = false; }
+    curr = curr->next;
+  }
+
+  return allClean;
+}
+
+ENGINE_API char* memoryGetUsageStr(void)
+{
+  const size_t gib = 1024 * 1024 * 1024;
+  const size_t mib = 1024 * 1024;
+  const size_t kib = 1024;
+
+  char buffer[8000] = "System memory use (tagged):\n";
+  size_t offset = strlen(buffer);
+  for (uint8_t i = 0; i < MEMORY_TAG_COUNT; ++i)
+  {
+    char unit[4] = "XiB";
+    float amount = 1.0f;
+    if (memoryTagAllocatedBytes[i] >= gib)
+    {
+      unit[0] = 'G';
+      amount  = memoryTagAllocatedBytes[i] / (float) gib;
+    }
+    else if (memoryTagAllocatedBytes[i] >= mib)
+    {
+      unit[0] = 'M';
+      amount  = memoryTagAllocatedBytes[i] / (float) mib;
+    }
+    else if (memoryTagAllocatedBytes[i] >= kib)
+    {
+      unit[0] = 'K';
+      amount  = memoryTagAllocatedBytes[i] / (float) kib;
+    }
+    else
+    {
+      unit[0] = 'B';
+      unit[1] = 0;
+      amount  = memoryTagAllocatedBytes[i];
+    }
+
+    int32_t length = snprintf(buffer + offset, 8000, "  %s: %.2f%s\n", memoryTagStrings[i], amount, unit);
+    offset += length;
+  }
+
+  size_t  stringLength  = offset + 1;
+  char*   outStr        = (char*) ENGINE_MALLOC(stringLength, MEMORY_TAG_STRING);
+  
+
+  if (outStr != NULL)
+  { memcpy(outStr, buffer, stringLength); }
+
+  return outStr;
+}
