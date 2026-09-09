@@ -50,7 +50,7 @@ static size_t         memoryTagAllocationLimit[MEMORY_TAG_COUNT]  =
 // - - - Magic numbers
 #define MEMORY_HEADER_MAGIC 0xCAFEBABEU
 #define MEMORY_FOOTER_MAGIC 0xDEADBEEFU
-#define MEMORY_FREED_MAGIC  0xDDDDDDDDU
+#define MEMORY_FREED_MAGIC  0xAA00BB11U
 
 
 // - - - Helper Functions - - -
@@ -113,7 +113,7 @@ static bool memoryTrackerVerifyIntegrity(MemoryHeader* HEADER, const char* FILE,
 
   if (HEADER->magic != MEMORY_HEADER_MAGIC)
   {
-    LOG_FATAL("[ENGINE MEMORY TRACKER] : Header canary at %s:%d in %s! Expected 0x%X, got 0x%X",
+    LOG_FATAL("[ENGINE MEMORY TRACKER] : Header magic at %s:%d in %s! Expected 0x%X, got 0x%X",
               FILE, LINE, FUNC, MEMORY_HEADER_MAGIC, HEADER->magic);
     abort();
   }
@@ -124,7 +124,7 @@ static bool memoryTrackerVerifyIntegrity(MemoryHeader* HEADER, const char* FILE,
 
   if (footerVal != MEMORY_FOOTER_MAGIC)
   {
-    LOG_FATAL("[ENGINE MEMORY TRACKER] : Buffer overflow detected! Tail canary overwritten for allocation of %zu bytes (origin: %s:%d in %s). Check triggered at %s:%d in %s.",
+    LOG_FATAL("[ENGINE MEMORY TRACKER] : Buffer overflow detected! Tail magic overwritten for allocation of %zu bytes (origin: %s:%d in %s). Check triggered at %s:%d in %s.",
               HEADER->requestedSize, HEADER->file, HEADER->line, HEADER->func, FILE, LINE, FUNC);
     abort();
   }
