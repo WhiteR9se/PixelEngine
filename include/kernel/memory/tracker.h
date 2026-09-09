@@ -17,6 +17,9 @@
 extern C {
 #endif
 
+/// @brief : Represents the default limit in bytes for any tag for allocation (1KiB)
+#define MEMORY_LIMIT_DEFAULT 1024
+
 /// @brief : Enum that stores various reasons for allocating memory
 typedef enum memoryTag
 {
@@ -120,7 +123,22 @@ ENGINE_API size_t memoryGetActiveBytes(MemoryTag TAG);
  * @warning : just for debugging, not for actually parsing memory usage
  * @see : memoryGetActiveBytes for better usage API
 */
-ENGINE_API char* memoryGetUsageStr(void);
+ENGINE_API void memoryLogUsageStr(void);
+
+/**
+ * @brief : Sets a limit on the memory allocation of a particular type
+ * @warning : If you exceed the limit, the allocations will return NULL
+ * @warning : TAG must be valid
+ * @param LIMIT : The limit you want to set in bytes
+ * @param TAG : What do you want to set the limit for
+*/
+ENGINE_API void memorySetLimit(size_t LIMIT, MemoryTag TAG);
+
+/**
+ * @brief : Returns the memory allocation limit
+ * @warning : TAG must be valid
+*/
+ENGINE_API size_t memoryGetLimit(MemoryTag TAG);
 
 
 // - - - | MACRO Usage API | - - -

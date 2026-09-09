@@ -16,28 +16,35 @@
  * @brief : Struct that keeps track of allocations as a doubly linked list
  * @warning : Aligned to 16 bytes
 */
-alignas(max_align_t) struct memoryHeader
+typedef struct memoryHeader
 {
-  size_t                requestedSize; ///< How much did the user ask to allocate
-  const char*           file;          ///< What file was the allocation in
-  const char*           func;          ///< What function was the allocation in
-  struct memoryHeader*  next;          ///< Pointer to the next allocation
-  struct memoryHeader*  prev;          ///< Pointer to the previous allocation
-  uint32_t              magic;         ///< Magic number, if overwritten, then there is a corruption
-  int32_t               line;          ///< What line was the allocation in
-  MemoryTag             tag;           ///< What was the allocation for
-};
+  alignas(max_align_t) size_t requestedSize; ///< How much did the user ask to allocate
+  const char*                 file;          ///< What file was the allocation in
+  const char*                 func;          ///< What function was the allocation in
+  struct memoryHeader*        next;          ///< Pointer to the next allocation
+  struct memoryHeader*        prev;          ///< Pointer to the previous allocation
+  uint32_t                    magic;         ///< Magic number, if overwritten, then there is a corruption
+  int32_t                     line;          ///< What line was the allocation in
+  MemoryTag                   tag;           ///< What was the allocation for
+} MemoryHeader;
 
-typedef struct memoryHeader MemoryHeader;
+COMPILE_TIME_ASSERT(alignof(MemoryHeader) == alignof(max_align_t));
 
-static size_t         memoryTagAllocatedBytes[MEMORY_TAG_COUNT] = {0};
-static MemoryHeader*  memoryActiveAllocations                   = NULL;
-static const char*    memoryTagStrings[MEMORY_TAG_COUNT]        = 
+static size_t         memoryTagAllocatedBytes[MEMORY_TAG_COUNT]   = {0};
+static MemoryHeader*  memoryActiveAllocations                     = NULL;
+static const char*    memoryTagStrings[MEMORY_TAG_COUNT]          =
   {
     [MEMORY_TAG_ARRAY]          = "ARRAY        ",
     [MEMORY_TAG_DYNAMIC_ARRAY]  = "DYNAMIC ARRAY",
     [MEMORY_TAG_STRING]         = "STRING       ",
     [MEMORY_TAG_UNKOWN]         = "UNKOWN       ",
+  };
+static size_t         memoryTagAllocationLimit[MEMORY_TAG_COUNT]  =
+  {
+    [MEMORY_TAG_ARRAY]         = MEMORY_LIMIT_DEFAULT,
+    [MEMORY_TAG_DYNAMIC_ARRAY] = MEMORY_LIMIT_DEFAULT,
+    [MEMORY_TAG_STRING]        = MEMORY_LIMIT_DEFAULT,
+    [MEMORY_TAG_UNKOWN]        = MEMORY_LIMIT_DEFAULT,
   };
 
 // - - - Magic numbers
@@ -141,10 +148,18 @@ ENGINE_API void* memoryTrackedMalloc(
   // - - - total size to malloc changes = HEADER + PAYLOAD + FOOTER
   size_t totalSize = sizeof(MemoryHeader) + SIZE + sizeof(uint32_t);
 
+  if (totalSize + memoryTagAllocatedBytes[TAG] > memoryTagAllocationLimit[TAG])
+  {
+    LOG_FATAL("[ENGINE MEMORY TRACKER] : Limit (%zu) will be crossed by allocating %zu bytes at %s:%d in function %s for %s", 
+              memoryTagAllocationLimit[TAG], SIZE, FILE, LINE, FUNC, memoryTagStrings[TAG]);
+    return NULL;
+  }
+
   MemoryHeader* header = (MemoryHeader*) malloc(totalSize);
   if (!header)
   {
-    LOG_FATAL("[ENGINE MEMORY TRACKER] : OOM allocating %zu bytes at %s:%d in function %s", SIZE, FILE, LINE, FUNC);
+    LOG_FATAL("[ENGINE MEMORY TRACKER] : malloc failure allocating %zu bytes at %s:%d in function %s for %s", 
+              SIZE, FILE, LINE, FUNC, TAG);
     return NULL;
   }
 
@@ -203,12 +218,20 @@ ENGINE_API void* memoryTrackedRealloc(
   memoryTrackerUnlinkNode(oldHeader);
 
   size_t        newTotalSize  = sizeof(MemoryHeader) + NEW_SIZE + sizeof(uint32_t);
+  if (newTotalSize + memoryTagAllocatedBytes[oldHeader->tag] > memoryTagAllocationLimit[oldHeader->tag])
+  {
+    LOG_FATAL("[ENGINE MEMORY TRACKER] : Limit (%zu) will be crossed by allocating %zu bytes at %s:%d in function %s for %s", 
+              memoryTagAllocationLimit[oldHeader->tag], NEW_SIZE, FILE, LINE, FUNC, oldHeader->tag);
+    return NULL;
+  }
+
   MemoryHeader* newHeader     = (MemoryHeader*) realloc(oldHeader, newTotalSize);
 
   if (!newHeader)
   {
     memoryTrackerLinkNode(oldHeader);
-    LOG_FATAL("[ENGINE MEMORY TRACKER] : OOM reallocating %zu bytes at %s:%d in function %s", NEW_SIZE, FILE, LINE, FUNC);
+    LOG_FATAL("[ENGINE MEMORY TRACKER] : realloc failure reallocating %zu bytes at %s:%d in function %s for %s", 
+              NEW_SIZE, FILE, LINE, FUNC, oldHeader->tag);
     return NULL;
   }
 
@@ -238,8 +261,8 @@ ENGINE_API void memoryTrackedFree(
 
   memoryTrackerUnlinkNode(header);
 
-  header->magic = MEMORY_FREED_MAGIC;
-  uint32_t freedFooter = MEMORY_FREED_MAGIC;
+  header->magic         = MEMORY_FREED_MAGIC;
+  uint32_t freedFooter  = MEMORY_FREED_MAGIC;
   memcpy(memoryTrackerGetFooter(header), &freedFooter, sizeof(uint32_t));
 
   free(header);
@@ -286,50 +309,83 @@ ENGINE_API bool memoryCheckBounds(void)
   return allClean;
 }
 
-ENGINE_API char* memoryGetUsageStr(void)
+ENGINE_API size_t memoryGetLimit(MemoryTag TAG)
 {
-  const size_t gib = 1024 * 1024 * 1024;
-  const size_t mib = 1024 * 1024;
-  const size_t kib = 1024;
+  ASSERT_DEBUG_MESSAGE(TAG != MEMORY_TAG_COUNT, "[ENGINE MEMORY TRACKER] : Cannot check limit of invalid TAG");
+  return memoryTagAllocationLimit[TAG];
+}
 
-  char buffer[8000] = "System memory use (tagged):\n";
-  size_t offset = strlen(buffer);
+ENGINE_API void memorySetLimit(size_t LIMIT, MemoryTag TAG)
+{
+  ASSERT_DEBUG_MESSAGE(TAG != MEMORY_TAG_COUNT, "[ENGINE MEMORY TRACKER] : Cannot check limit of invalid TAG");
+
+  if (memoryTagAllocatedBytes[TAG] >= LIMIT)
+  {
+    LOG_WARNING("[ENGINE MEMORY TRACKER] : New limit on %s is already crossed", memoryTagStrings[TAG]);
+  }
+  memoryTagAllocationLimit[TAG] = LIMIT;
+}
+
+ENGINE_API void memoryLogUsageStr(void)
+{
+  const double gib = 1024.0 * 1024.0 * 1024.0;
+  const double mib = 1024.0 * 1024.0;
+  const double kib = 1024.0;
+
+  char    buffer[8192]  = "System memory use (tagged):\n";
+  size_t  offset        = strlen(buffer);
+
   for (uint8_t i = 0; i < MEMORY_TAG_COUNT; ++i)
   {
-    char unit[4] = "XiB";
-    float amount = 1.0f;
-    if (memoryTagAllocatedBytes[i] >= gib)
+    size_t used   = memoryTagAllocatedBytes[i];
+    size_t limit  = memoryTagAllocationLimit[i];
+    size_t ref    = (limit > 0 && limit > used) ? limit : used;
+
+    const char* unit    = "B";
+    double      divisor = 1.0;
+
+    if (ref >= (size_t)gib)
     {
-      unit[0] = 'G';
-      amount  = memoryTagAllocatedBytes[i] / (float) gib;
+      unit    = "GiB";
+      divisor = gib;
     }
-    else if (memoryTagAllocatedBytes[i] >= mib)
+    else if (ref >= (size_t)mib)
     {
-      unit[0] = 'M';
-      amount  = memoryTagAllocatedBytes[i] / (float) mib;
+      unit    = "MiB";
+      divisor = mib;
     }
-    else if (memoryTagAllocatedBytes[i] >= kib)
+    else if (ref >= (size_t)kib)
     {
-      unit[0] = 'K';
-      amount  = memoryTagAllocatedBytes[i] / (float) kib;
+      unit    = "KiB";
+      divisor = kib;
+    }
+
+    double  usedScaled = (double)used / divisor;
+    int32_t written = 0;
+
+    if (limit > 0)
+    {
+      double limitScaled = (double)limit / divisor;
+      double percentage  = ((double)used / (double)limit) * 100.0;
+
+      written = snprintf(buffer + offset, sizeof(buffer) - offset,
+                         "  %-14s: %.2f / %.2f %s (%.2f%%)\n",
+                         memoryTagStrings[i], usedScaled, limitScaled, unit, percentage);
     }
     else
     {
-      unit[0] = 'B';
-      unit[1] = 0;
-      amount  = memoryTagAllocatedBytes[i];
+      written = snprintf(buffer + offset, sizeof(buffer) - offset,
+                         "  %-14s: %.2f %s (No Limit)\n",
+                         memoryTagStrings[i], usedScaled, unit);
     }
 
-    int32_t length = snprintf(buffer + offset, 8000, "  %s: %.2f%s\n", memoryTagStrings[i], amount, unit);
-    offset += length;
+    if (written < 0 || (size_t)written >= sizeof(buffer) - offset)
+    {
+      LOG_WARNING("[ENGINE MEMORY TRACKER] : Buffer is too small for string representation");
+      break;
+    }
+    offset += (size_t)written;
   }
 
-  size_t  stringLength  = offset + 1;
-  char*   outStr        = (char*) ENGINE_MALLOC(stringLength, MEMORY_TAG_STRING);
-  
-
-  if (outStr != NULL)
-  { memcpy(outStr, buffer, stringLength); }
-
-  return outStr;
+  LOG_INFO("[ENGINE MEMORY TRACKER] : Usage:\n%s", buffer);
 }
