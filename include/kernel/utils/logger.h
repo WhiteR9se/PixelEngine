@@ -24,34 +24,22 @@ extern "C" {
 
 /// @brief The DEBUG macro turns thorough debugging on by default
 #ifdef DEBUG 
-  #define LOG_WARNING_ENABLED 1 
-  #define LOG_DEBUG_ENABLED   1
-  #define LOG_TRACE_ENABLED   1 
-  #define LOG_INFO_ENABLED    1
+  #define LOG_WARNING_ENABLED
+  #define LOG_DEBUG_ENABLED
+  #define LOG_TRACE_ENABLED
+  #define LOG_INFO_ENABLED
 #endif 
 
-#ifndef LOG_WARNING_ENABLED
-  #define LOG_WARNING_ENABLED   1
-#endif
-
-#ifndef LOG_INFO_ENABLED
-  #define LOG_INFO_ENABLED      1
-#endif
-
-#ifndef LOG_DEBUG_ENABLED
-  #define LOG_DEBUG_ENABLED     1
-#endif
-
-#ifndef LOG_TRACE_ENABLED
-  #define LOG_TRACE_ENABLED     1
-#endif
+// - - - error and fatal are always enabled
+#define LOG_FATAL_ENABLED
+#define LOG_ERROR_ENABLED
 
 #ifndef PRINT_LOG_TYPES
-  #define PRINT_LOG_TYPES       1
+  #define PRINT_LOG_TYPES
 #endif
 
 #ifndef PRINT_LOG_COLORS
-  #define PRINT_LOG_COLORS      1
+  #define PRINT_LOG_COLORS
 #endif
 
 
@@ -76,34 +64,34 @@ ENGINE_API void logOutput(LogLevel LEVEL, const char* MESSAGE, ...); // - - - Mu
 
 // - - - Fatal log
 // - - - Always define FATAL and ERROR logs.
-#ifndef LOG_FATAL
+#ifdef LOG_FATAL_ENABLED
   #define LOG_FATAL(...) logOutput(LOG_LEVEL_FATAL, __VA_ARGS__, "%s", "");
 #endif
 
-#ifndef LOG_ERROR
+#ifdef LOG_ERROR_ENABLED
   #define LOG_ERROR(...) logOutput(LOG_LEVEL_ERROR, __VA_ARGS__, "%s", "");
 #endif
 
 // - - - For the rest, define only when enabled, else define to nothingness
-#if LOG_WARNING_ENABLED == 1
+#ifdef LOG_WARNING_ENABLED
   #define LOG_WARNING(...) logOutput(LOG_LEVEL_WARNING, __VA_ARGS__, "%s", "");
 #else
   #define LOG_WARNING(...)
 #endif
 
-#if LOG_INFO_ENABLED == 1
+#ifdef LOG_INFO_ENABLED
   #define LOG_INFO(...) logOutput(LOG_LEVEL_INFO, __VA_ARGS__, "%s", "");
 #else
   #define LOG_INFO(...)
 #endif
 
-#if LOG_DEBUG_ENABLED == 1
+#ifdef LOG_DEBUG_ENABLED
   #define LOG_DEBUG(...) logOutput(LOG_LEVEL_DEBUG, __VA_ARGS__, "%s", "");
 #else
   #define LOG_DEBUG(...)
 #endif
 
-#if LOG_TRACE_ENABLED == 1
+#ifdef LOG_TRACE_ENABLED
   #define LOG_TRACE(...) logOutput(LOG_LEVEL_TRACE, __VA_ARGS__, "%s", "");
 #else
   #define LOG_TRACE(...)

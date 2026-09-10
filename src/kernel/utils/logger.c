@@ -82,7 +82,7 @@ ENGINE_API void logOutput(LogLevel LEVEL, const char* MESSAGE, ...)
 
   // - - - Prepend with level header
   char finalMessage[32000];
-  #if PRINT_LOG_TYPES == 1
+  #ifdef PRINT_LOG_TYPES
     sprintf(finalMessage, "%s\t%s", levelStrings[LEVEL], outputMessage);
   #else 
     sprintf(finalMessage, "%s", outputMessage);

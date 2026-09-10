@@ -3,6 +3,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef DEBUG
+  #define DEBUG
+#endif
+
 #include <kernel/defines.h>
 #include <kernel/utils/assert.h>
 #include <kernel/utils/logger.h>
@@ -133,7 +138,7 @@ ENGINE_API size_t testRunAll(void)
         passedTests++;
         LOG_INFO("  [PASS]    %s", test.description);
       } 
-      else if (result == ENGINE_TEST_SKIP) 
+      else if (result == ENGINE_TEST_SKIP)
       {
         skippedTests++;
         LOG_WARNING("  [SKIP]    %s", test.description);
