@@ -109,7 +109,6 @@ int32_t main(void)
   for (size_t frame = 0; frame < BENCHMARK_FRAMES; ++frame)
   { ecsRun(DT); }
 
-  memoryLogUsageStr();
-
+  memoryLogUsageStr(true);
   ecsDestroy();
 }

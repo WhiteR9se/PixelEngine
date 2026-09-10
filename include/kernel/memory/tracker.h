@@ -121,10 +121,11 @@ ENGINE_API size_t memoryGetActiveBytes(MemoryTag TAG);
 
 /**
  * @brief : Returns the memory allocated as a string,
+ * @param VERBOSE : If true, then every information is printed, where did each allocation happen, line, file and function
  * @warning : just for debugging, not for actually parsing memory usage
  * @see : memoryGetActiveBytes for better usage API
 */
-ENGINE_API void memoryLogUsageStr(void);
+ENGINE_API void memoryLogUsageStr(bool VERBOSE);
 
 /**
  * @brief : Sets a limit on the memory allocation of a particular type

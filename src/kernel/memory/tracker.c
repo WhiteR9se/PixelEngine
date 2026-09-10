@@ -281,7 +281,7 @@ ENGINE_API void memoryReportLeaks(void)
   size_t totalLeakedBytes = 0;
   size_t leakCount        = 0;
 
-  LOG_ERROR("[ENGINE MEMORY TRACKER] : Memory Leaks Detected");
+  LOG_ERROR("[ENGINE MEMORY TRACKER] : Memory Leaks Detected, trying to report, but reporting itself may cause segfault");
   MemoryHeader* curr = memoryActiveAllocations;
   while (curr != NULL)
   {
@@ -328,66 +328,119 @@ ENGINE_API void memorySetLimit(size_t LIMIT, MemoryTag TAG)
   memoryTagAllocationLimit[TAG] = LIMIT;
 }
 
-ENGINE_API void memoryLogUsageStr(void)
+ENGINE_API void memoryLogUsageStr(bool VERBOSE)
 {
-  const double gib = 1024.0 * 1024.0 * 1024.0;
-  const double mib = 1024.0 * 1024.0;
-  const double kib = 1024.0;
+  #ifdef DEBUG
+    const double gib = 1024.0 * 1024.0 * 1024.0;
+    const double mib = 1024.0 * 1024.0;
+    const double kib = 1024.0;
 
-  char    buffer[8192]  = "System memory use (tagged):\n";
-  size_t  offset        = strlen(buffer);
-
-  for (uint8_t i = 0; i < MEMORY_TAG_COUNT; ++i)
-  {
-    size_t used   = memoryTagAllocatedBytes[i];
-    size_t limit  = memoryTagAllocationLimit[i];
-    size_t ref    = (limit > 0 && limit > used) ? limit : used;
-
-    const char* unit    = "B";
-    double      divisor = 1.0;
-
-    if (ref >= (size_t)gib)
+    // - - - Father allocation count per tag
+    size_t tagAllocCount[MEMORY_TAG_COUNT] = {0};
+    MemoryHeader* curr = memoryActiveAllocations;
+    while (curr != NULL)
     {
-      unit    = "GiB";
-      divisor = gib;
-    }
-    else if (ref >= (size_t)mib)
-    {
-      unit    = "MiB";
-      divisor = mib;
-    }
-    else if (ref >= (size_t)kib)
-    {
-      unit    = "KiB";
-      divisor = kib;
+      tagAllocCount[curr->tag]++;
+      curr = curr->next;
     }
 
-    double  usedScaled = (double)used / divisor;
-    int32_t written = 0;
+    LOG_INFO("[ENGINE MEMORY TRACKER] : System memory use (tagged):");
 
-    if (limit > 0)
+    // - - - Iterate through each tag
+    for (uint8_t i = 0; i < MEMORY_TAG_COUNT; ++i)
     {
-      double limitScaled = (double)limit / divisor;
-      double percentage  = ((double)used / (double)limit) * 100.0;
+      size_t used  = memoryTagAllocatedBytes[i];
+      size_t limit = memoryTagAllocationLimit[i];
+      size_t ref   = (limit > used) ? limit : used;
 
-      written = snprintf(buffer + offset, sizeof(buffer) - offset,
-                         "  %-14s: %.2f / %.2f %s (%.2f%%)\n",
-                         memoryTagStrings[i], usedScaled, limitScaled, unit, percentage);
-    }
-    else
-    {
-      written = snprintf(buffer + offset, sizeof(buffer) - offset,
-                         "  %-14s: %.2f %s (No Limit)\n",
-                         memoryTagStrings[i], usedScaled, unit);
-    }
+      const char* unit    = "B";
+      double      divisor = 1.0;
 
-    if (written < 0 || (size_t)written >= sizeof(buffer) - offset)
-    {
-      LOG_WARNING("[ENGINE MEMORY TRACKER] : Buffer is too small for string representation");
-      break;
-    }
-    offset += (size_t)written;
-  }
+      if (ref >= (size_t)gib)
+      {
+        unit    = "GiB";
+        divisor = gib;
+      }
+      else if (ref >= (size_t)mib)
+      {
+        unit    = "MiB";
+        divisor = mib;
+      }
+      else if (ref >= (size_t)kib)
+      {
+        unit    = "KiB";
+        divisor = kib;
+      }
 
-  LOG_INFO("[ENGINE MEMORY TRACKER] : Usage:\n%s", buffer);
+      double  usedScaled = (double)used / divisor;
+      char    tagHeader[256];
+
+      const char* special = (i + 1 == MEMORY_TAG_COUNT) ? "└──" : "├──";;
+
+      if (limit > 0)
+      {
+        double limitScaled = (double)limit / divisor;
+        double percentage  = ((double)used / (double)limit) * 100.0;
+
+        snprintf(tagHeader, sizeof(tagHeader),
+                "  %s %-14s: %.2f / %.2f %s (%.2f%%) [%zu alloc%s]",
+                special, memoryTagStrings[i], usedScaled, limitScaled, unit, 
+                percentage, tagAllocCount[i], tagAllocCount[i] == 1 ? "" : "s");
+      }
+      else
+      {
+        snprintf(tagHeader, sizeof(tagHeader),
+                "  %s %-14s: %.2f %s (No Limit) [%zu alloc%s]",
+                special, memoryTagStrings[i], usedScaled, unit,
+                tagAllocCount[i], tagAllocCount[i] == 1 ? "" : "s");
+      }
+
+      LOG_INFO("%s", tagHeader);
+
+      // - - - Verbose breakdown per allocation
+      if (VERBOSE)
+      {
+        const char* bar = (i != MEMORY_TAG_COUNT - 1) ? "  │" : "   ";
+
+        if (tagAllocCount[i] != 0)
+        {
+          MemoryHeader* alloc = memoryActiveAllocations;
+          while (alloc != NULL)
+          {
+            if (alloc->tag == i)
+            {
+              // - - - Format size for individual entry
+              const char* entryUnit       = "B";
+              double      entryDivisor    = 1.0f;
+
+              if (alloc->requestedSize >= (size_t) gib)
+              {
+                entryUnit     = "GiB";
+                entryDivisor  = gib;
+              }
+              else if (alloc->requestedSize >= (size_t) mib)
+              {
+                entryUnit     = "MiB";
+                entryDivisor  = mib;
+              }
+              else if (alloc->requestedSize >= (size_t) kib)
+              {
+                entryUnit     = "KiB";
+                entryDivisor  = kib;
+              }
+
+              double entryScaled      = (double) alloc->requestedSize / entryDivisor;
+              double entryPercentage  = ((double) alloc->requestedSize / (double) used) * 100.0;
+
+              const char* special = (alloc->next == NULL || alloc->next->tag != alloc->tag) ? "└──" : "├──";
+              LOG_DEBUG("%s  %s %s:%d in %s for %.2f %s (%.2f%% of the usage)",
+                      bar, special, alloc->file, alloc->line, alloc->func,
+                      entryScaled, entryUnit, entryPercentage);
+            }
+            alloc = alloc->next;
+          }
+        }
+      }
+    }
+  #endif
 }

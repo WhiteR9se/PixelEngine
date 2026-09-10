@@ -11,8 +11,6 @@
   extern "C" {
 #endif
 
-#define BITS_PER_WORD (sizeof(size_t) * 8)
-
 /// @brief : Bitset struct
 typedef struct bitset
 {
@@ -21,13 +19,6 @@ typedef struct bitset
   size_t* words;      ///< Backing memory buffer
   bool    ownsMemory; ///< True if allocated internally, false if passed in
 } Bitset;
-
-inline size_t bitsetGetTailMask(size_t CAPACITY)
-{
-  size_t remainder = CAPACITY % BITS_PER_WORD;
-  if (remainder == 0) return ~(size_t)0;
-  return ((size_t)1 << remainder) - 1;
-}
 
 /**
  * @brief : Initializes a bitset
@@ -58,39 +49,21 @@ ENGINE_API bool bitsetEquals(const Bitset* A, const Bitset* B);
  * @param BITSET : Pointer to the bitset
  * @param INDEX : Which index to set
 */
-ENGINE_API inline void bitsetSet(Bitset* BITSET, size_t INDEX)
-{
-  ASSERT_DEBUG_MESSAGE(BITSET != NULL, "[BISTET] : Cannot set in a NULL BITSET");
-  ASSERT_DEBUG_MESSAGE(INDEX < BITSET->capacity, "[BITSET] : Index out of bounds ");
-
-  BITSET->words[INDEX / BITS_PER_WORD] |= ((size_t)1 << (INDEX % BITS_PER_WORD));
-}
+ENGINE_API void bitsetSet(Bitset* BITSET, size_t INDEX);
 
 /**
  * @brief : Sets a bit at index to 0
  * @param BITSET : Pointer to the bitset
  * @param INDEX : Which index to clear
 */
-ENGINE_API inline void bitsetClear(Bitset* BITSET, size_t INDEX)
-{
-  ASSERT_DEBUG_MESSAGE(BITSET != NULL, "[BISTET] : Cannot set in a NULL BITSET");
-  ASSERT_DEBUG_MESSAGE(INDEX < BITSET->capacity, "[BITSET] : Index out of bounds ");
-
-  BITSET->words[INDEX / BITS_PER_WORD] &= ~((size_t)1 << (INDEX % BITS_PER_WORD));
-}
+ENGINE_API void bitsetClear(Bitset* BITSET, size_t INDEX);
 
 /**
  * @brief : Toggles a bit at index
  * @param BITSET : Pointer to the bitset
  * @param INDEX : Which index to toggle
 */
-ENGINE_API inline void bitsetToggle(Bitset* BITSET, size_t INDEX)
-{
-  ASSERT_DEBUG_MESSAGE(BITSET != NULL, "[BISTET] : Cannot set in a NULL BITSET");
-  ASSERT_DEBUG_MESSAGE(INDEX < BITSET->capacity, "[BITSET] : Index out of bounds ");
-
-  BITSET->words[INDEX / BITS_PER_WORD] ^= ((size_t)1 << (INDEX % BITS_PER_WORD));
-}
+ENGINE_API void bitsetToggle(Bitset* BITSET, size_t INDEX);
 
 /**
  * @brief : Gets a bit at index
@@ -98,36 +71,19 @@ ENGINE_API inline void bitsetToggle(Bitset* BITSET, size_t INDEX)
  * @param INDEX : Which index to set
  * @return : True if the bit is set, false otherwise
 */
-ENGINE_API inline bool bitsetGet(Bitset* BITSET, size_t INDEX)
-{
-  ASSERT_DEBUG_MESSAGE(BITSET != NULL, "[BISTET] : Cannot set in a NULL BITSET");
-  ASSERT_DEBUG_MESSAGE(INDEX < BITSET->capacity, "[BITSET] : Index out of bounds ");
-
-  return (BITSET->words[INDEX / BITS_PER_WORD] & (size_t)1 << (INDEX % BITS_PER_WORD));
-}
+ENGINE_API bool bitsetGet(Bitset* BITSET, size_t INDEX);
 
 /**
  * @brief : Clears all bits to 0
  * @param BITSET : Pointer to the bitset
 */
-ENGINE_API inline void bitsetClearAll(Bitset* BITSET)
-{
-  ASSERT_DEBUG_MESSAGE(BITSET != NULL, "[BISTET] : Cannot set in a NULL BITSET");
-
-  memset(BITSET->words, 0, BITSET->wordCount * sizeof(size_t));
-}
+ENGINE_API void bitsetClearAll(Bitset* BITSET);
 
 /**
  * @brief : Sets all bits to 1
  * @param BITSET : Pointer to the bitset
 */
-ENGINE_API inline void bitsetSetAll(Bitset* BITSET)
-{
-  ASSERT_DEBUG_MESSAGE(BITSET != NULL, "[BISTET] : Cannot set in a NULL BITSET");
-
-  memset(BITSET->words, 0xFF, BITSET->wordCount * sizeof(size_t));
-  BITSET->words[BITSET->wordCount - 1] &= bitsetGetTailMask(BITSET->capacity);
-}
+ENGINE_API void bitsetSetAll(Bitset* BITSET);
 
 /**
  * @brief : Computes in -place union : DST = DST | SRC
