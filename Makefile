@@ -6,12 +6,12 @@ MODE          ?= debug
 INCLUDE_DIR   := include
 SRC_DIR       := src
 TEST_DIR      := tests
-BIN_DIR       := bin
+BIN_DIR       := bin/$(MODE)
 BUILD_DIR     := .build/$(MODE)
 
 # - - - Compiler & Flags - - -
 CC            := clang
-COMMON_FLAGS  := -std=c11 -Wall -Werror -Wpedantic -fPIC -fvisibility=hidden
+COMMON_FLAGS  := -std=c11 -Wall -Werror -Wpedantic -fPIC -fvisibility=hidden -march=native
 DEBUG_FLAGS   := -O0 -g
 RELEASE_FLAGS := -O3
 
@@ -22,9 +22,11 @@ ifeq ($(MODE),debug)
   CFLAGS   := $(COMMON_FLAGS) $(DEBUG_FLAGS)
   CPPFLAGS += -DDEBUG
   $(info Build mode: DEBUG)
+  $(info Flags : $(CFLAGS) $(CPPFLAGS))
 else ifeq ($(MODE),release)
   CFLAGS   := $(COMMON_FLAGS) $(RELEASE_FLAGS)
   $(info Build mode: RELEASE)
+  $(info Flags : $(CFLAGS) $(CPPFLAGS))
 else
   $(error Unknown build mode: '$(MODE)'. Must be 'debug' or 'release')
 endif

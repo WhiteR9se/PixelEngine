@@ -74,7 +74,7 @@ extern "C" {
   * @param ACTUAL Actual value.
   * @param EPS Allowed tolerance.
 */
-#define EXPECT_FLOAT_TO_BE(EXPECTED, ACTUAL, EPS)                                               \
+#define EXPECT_FLOAT_TO_BE(EXPECTED, ACTUAL, EPSILON)                                           \
   double _diff = (double)(EXPECTED) - (double)(ACTUAL);                                         \
   if (_diff < 0) _diff = -_diff;                                                                \
   if (_diff > (double)(EPSILON))                                                                \
