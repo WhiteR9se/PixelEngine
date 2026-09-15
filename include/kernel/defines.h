@@ -20,10 +20,10 @@ extern "C" {
 // - - - Sets the platform 
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
   #define ENGINE_PLATFORM ENGINE_PLATFORM_WINDOWS
-#elif defined(__linux__) || defined(__gnu_linux__)
-  #define ENGINE_PLATFORM ENGINE_PLATFORM_LINUX
 #elif defined(__ANDROID__)
   #define ENGINE_PLATFORM ENGINE_PLATFORM_ANDROID
+#elif defined(__linux__) || defined(__gnu_linux__)
+  #define ENGINE_PLATFORM ENGINE_PLATFORM_LINUX
 #elif defined(__APPLE__)
   #define ENGINE_PLATFORM ENGINE_PLATFORM_APPLE
 #else
@@ -36,12 +36,21 @@ extern "C" {
  * @warning : Use ENGINE_API in front of a function to be part of the library interface
 */
 #if ENGINE_PLATFORM == ENGINE_PLATFORM_WINDOWS
-  #if defined(ENGINE_EXPORT)
-    #define ENGINE_API __attribute__((dllexport))
+  #if defined(_MSC_VER)
+    #if defined(ENGINE_EXPORT)
+      #define ENGINE_API __declspec(dllexport)
+    #else
+      #define ENGINE_API __declspec(dllimport)
+    #endif
+    #define ENGINE_LOCAL
   #else
-    #define ENGINE_API __attribute__((dllimport))
+    #if defined(ENGINE_EXPORT)
+      #define ENGINE_API __attribute__((dllexport))
+    #else
+      #define ENGINE_API __attribute__((dllimport))
+    #endif
+    #define ENGINE_LOCAL
   #endif
-  #define ENGINE_LOCAL
 #else
   #define ENGINE_API __attribute__((visibility("default")))
   #define ENGINE_LOCAL __attribute__((visibility("hidden")))

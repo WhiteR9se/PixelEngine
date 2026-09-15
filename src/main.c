@@ -69,7 +69,7 @@ static void heavyMovementSystem(float DELTA_TIME)
 
 int32_t main(void)
 {
-  memorySetLimit(1024 * 1024 * 2, MEMORY_TAG_ECS_COMPONENT);
+  memorySetLimit(1024 * 1024 *2, MEMORY_TAG_ECS_COMPONENT);
   ecsInit();
 
   COMP_POSITION = ecsRegisterComponent(sizeof(Position));

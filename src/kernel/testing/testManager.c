@@ -17,6 +17,8 @@
 #if ENGINE_PLATFORM != ENGINE_PLATFORM_WINDOWS
   #include <unistd.h>
   #include <sys/wait.h>
+#else
+  #include <windows.h>
 #endif
 
 typedef struct testEntry 

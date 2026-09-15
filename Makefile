@@ -1,8 +1,13 @@
-# - - - | Definitions | - - -
+# - - - | OS Detection | - - -
+ifeq ($(OS),Windows_NT)
+  DETECTED_OS := Windows
+else
+  DETECTED_OS := Linux
+endif
+
+# - - - | Common Definitions & Directories | - - -
 
 MODE          ?= debug
-
-# - - - Directories - - -
 INCLUDE_DIR   := include
 SRC_DIR       := src
 TEST_DIR      := tests
@@ -11,20 +16,121 @@ BUILD_DIR     := .build/$(MODE)
 
 # - - - Compiler & Flags - - -
 CC            := clang
-COMMON_FLAGS  := -std=c11 -Wall -Werror -Wpedantic -fPIC -fvisibility=hidden -march=native
 DEBUG_FLAGS   := -O0 -g
 RELEASE_FLAGS := -O3
-
 CPPFLAGS      := -I$(INCLUDE_DIR) -MMD -MP
+
+
+
+# - - - - - - - - - - - - - -
+# - - - | WINDOWS BUILD | - - -
+# - - - - - - - - - - - - - -
+
+
+
+
+ifeq ($(DETECTED_OS),Windows)
+
+  
+  COMMON_WINDOWS_FLAGS := -std=c11 -Wall -Werror -Wpedantic -march=native # No -fPIC or -fvisibility needed for Windows
+	LDFLAGS              := -L$(BIN_DIR) # No -rpath needed, Windows searches current directory for DLLs
+
+  ifeq ($(MODE),debug)
+    CFLAGS   := $(COMMON_WINDOWS_FLAGS) $(DEBUG_FLAGS)
+    CPPFLAGS += -DDEBUG
+  else
+    CFLAGS   := $(COMMON_WINDOWS_FLAGS) $(RELEASE_FLAGS)
+  endif
+
+  # File finding
+  MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/main.c
+  KERNEL_SRCS := $(shell find $(SRC_DIR)/kernel -name '*.c')
+  RAW_SRCS    := $(shell find $(SRC_DIR) -name '*.c')
+  COMMON_SRCS := $(filter-out $(MAIN_SRCS) $(KERNEL_SRCS) , $(RAW_SRCS))
+  TEST_SRCS   := $(shell find $(TEST_DIR) -name '*.c')
+  ALL_SRCS    := $(COMMON_SRCS) $(MAIN_SRCS) $(TEST_SRCS) $(KERNEL_SRCS)
+
+  COMMON_OBJS := $(patsubst %.c, $(BUILD_DIR)/%.o, $(COMMON_SRCS))
+  MAIN_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.o, $(MAIN_SRCS))
+  KERNEL_OBJS := $(patsubst %.c, $(BUILD_DIR)/%.o, $(KERNEL_SRCS))
+  TEST_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.o, $(TEST_SRCS))
+  ALL_OBJS    := $(patsubst %.c, $(BUILD_DIR)/%.o, $(ALL_SRCS))
+
+  # Windows uses .exe and .dll extensions
+  MAIN_BINS   := $(patsubst $(SRC_DIR)/%.c, $(BIN_DIR)/%.exe, $(MAIN_SRCS))
+  TEST_BINS   := $(patsubst $(TEST_DIR)/%.c, $(BIN_DIR)/tests/%.exe, $(TEST_SRCS))
+  KERNEL_LIB  := $(BIN_DIR)/kernel.dll
+
+  HEADER_DEPS := $(ALL_OBJS:.o=.d)
+
+
+
+# - - - | Building | - - -
+
+# - - - Targets - - -
+.PHONY: all tests runTests clean remake
+all: $(KERNEL_LIB) $(MAIN_BINS) tests
+tests: $(KERNEL_LIB) $(TEST_BINS)
+
+runTests: tests
+	@for test_exec in $(TEST_BINS); do \
+		echo ""; \
+		echo "Running $$test_exec..."; \
+		./$$test_exec || exit 1; \
+		echo ""; \
+	done
+
+clean:
+	@rm -rf $(BIN_DIR) $(BUILD_DIR)
+
+remake: clean all
+
+
+
+# - - - Linking rules - - -
+
+
+$(KERNEL_LIB): $(KERNEL_OBJS)
+	@mkdir -p $(dir $@)
+	@$(CC) -shared -o $@ $^
+
+$(MAIN_BINS): $(BIN_DIR)/%.exe: $(BUILD_DIR)/$(SRC_DIR)/%.o $(COMMON_OBJS) $(KERNEL_LIB)
+	@mkdir -p $(dir $@)
+	@$(CC) $(CFLAGS) $< $(COMMON_OBJS) -lkernel $(LDFLAGS) -o $@
+
+$(TEST_BINS): $(BIN_DIR)/tests/%.exe: $(BUILD_DIR)/$(TEST_DIR)/%.o $(COMMON_OBJS) $(KERNEL_LIB)
+	@mkdir -p $(dir $@)
+	@$(CC) $(CFLAGS) $< $(COMMON_OBJS) -lkernel $(LDFLAGS) -o $@
+
+
+
+# - - - Object compilation rules - - -
+
+$(KERNEL_OBJS): CPPFLAGS += -DENGINE_EXPORT
+
+$(ALL_OBJS): $(BUILD_DIR)/%.o: %.c
+	@mkdir -p $(dir $@)
+	@$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+
+
+
+# - - - - - - - - - - - - - -
+# - - - | LINUX BUILD | - - -
+# - - - - - - - - - - - - - -
+
+else
+
+COMMON_LINUX_FLAGS  := -std=c11 -Wall -Werror -Wpedantic -fPIC -fvisibility=hidden -march=native
 LDFLAGS       := -L$(BIN_DIR) -Wl,-rpath=$(abspath $(BIN_DIR)) -lm
 
 ifeq ($(MODE),debug)
-  CFLAGS   := $(COMMON_FLAGS) $(DEBUG_FLAGS)
+  CFLAGS   := $(COMMON_LINUX_FLAGS) $(DEBUG_FLAGS)
   CPPFLAGS += -DDEBUG
   $(info Build mode: DEBUG)
   $(info Flags : $(CFLAGS) $(CPPFLAGS))
 else ifeq ($(MODE),release)
-  CFLAGS   := $(COMMON_FLAGS) $(RELEASE_FLAGS)
+  CFLAGS   := $(COMMON_LINUX_FLAGS) $(RELEASE_FLAGS)
   $(info Build mode: RELEASE)
   $(info Flags : $(CFLAGS) $(CPPFLAGS))
 else
@@ -127,5 +233,7 @@ $(ALL_OBJS): $(BUILD_DIR)/%.o: %.c
 	@echo "  [CC]   $<"
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
+
+endif
 
 -include $(HEADER_DEPS)
