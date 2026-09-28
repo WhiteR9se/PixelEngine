@@ -1,7 +1,4 @@
-#include <kernel/memory/tracker.h>
 #include <kernel/ecs/stupidSimple.h>
-#include <stdint.h>
-#include <stdio.h>
 #include <math.h>
 
 typedef struct position
@@ -69,19 +66,19 @@ static void heavyMovementSystem(float DELTA_TIME)
 
 int32_t main(void)
 {
-  memorySetLimit(1024 * 1024 *2, MEMORY_TAG_ECS_COMPONENT);
+  justMemorySetLimit(1024 * 1024 *2, MEMORY_TAG_ECS_COMPONENT);
   ecsInit();
 
   COMP_POSITION = ecsRegisterComponent(sizeof(Position));
   COMP_VELOCITY = ecsRegisterComponent(sizeof(Velocity));
 
   ecsRegisterSystem((System)
-     {
+    {
       .name = "LIGHT MOVEMENT",
       .run  = lightMovementSystem,
     });
   ecsRegisterSystem((System)
-     {
+    {
       .name = "HEAVY MOVEMENT",
       .run  = heavyMovementSystem,
     });
@@ -109,6 +106,6 @@ int32_t main(void)
   for (size_t frame = 0; frame < BENCHMARK_FRAMES; ++frame)
   { ecsRun(DT); }
 
-  memoryLogUsageStr(true);
+  justMemoryLogUsage(true);
   ecsDestroy();
 }
