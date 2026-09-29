@@ -43,7 +43,7 @@ ifeq ($(DETECTED_OS),Windows)
   endif
 
   # File finding
-  MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/main.c
+  MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/sampleGame/main.c
   KERNEL_SRCS := $(shell find $(SRC_DIR)/kernel -name '*.c')
   RAW_SRCS    := $(shell find $(SRC_DIR) -name '*.c')
   COMMON_SRCS := $(filter-out $(MAIN_SRCS) $(KERNEL_SRCS) , $(RAW_SRCS))
@@ -141,7 +141,7 @@ $(info )
 
 # - - - File Finding - - -
 
-MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/main.c
+MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/sampleGame/main.c
 KERNEL_SRCS := $(shell find $(SRC_DIR)/kernel -name '*.c')
 RAW_SRCS    := $(shell find $(SRC_DIR) -name '*.c')
 COMMON_SRCS := $(filter-out $(MAIN_SRCS) $(KERNEL_SRCS) , $(RAW_SRCS))
