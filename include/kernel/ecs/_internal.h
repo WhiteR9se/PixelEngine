@@ -18,7 +18,8 @@ typedef size_t ComponentInfo;
 typedef struct entityRecord
 {
   ArchetypeID archetypeID;  ///< What archetype does this entity belong to
-  EntityID    entityID;     ///< What entity
+  uint32_t    rowIndex;     ///< Index
+  uint32_t    generation;   ///< Generation
 } EntityRecord;
 
 /// @brief : Archetype metadata 
@@ -43,9 +44,21 @@ typedef struct ecsWorld
   ComponentInfo     componentRegistry[MAX_COMPONENT_COUNT]; ///< Component storage
 } ECSWorld;
 
-// - - - Global private instance
+/// @brief: Global private instance
 extern ECSWorld* _world;
 
-// - - - Internal helper declarations
-bool        ecsIsWorldValid(void);
-Archetype*  ecsInternalGetArchetype(ArchetypeID ARCHETYPE);
+// - - - Internal helper declarations - - -
+
+/**
+ * @brief : Tells whether the world has been initialized or not
+ * @return : true if the world has been initialized, false otherwise
+ */
+static inline bool ecsIsWorldValid(void) 
+{ return _world != NULL; }
+
+/**
+ * @brief : Gets archetype from id
+ * @param ARCHETYPE : The Archetype id
+ * @return : Pointer to the refered archhetype
+ */
+Archetype* ecsInternalGetArchetype(ArchetypeID ARCHETYPE);
