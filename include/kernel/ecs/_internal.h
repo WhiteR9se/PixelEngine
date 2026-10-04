@@ -33,7 +33,6 @@ typedef struct archetype
   JustDynamicArray  entityIds;                              ///< Entity storage
 } Archetype;
 
-
 /// @brief : Global state of the ECS
 typedef struct ecsWorld
 {
@@ -56,9 +55,42 @@ extern ECSWorld* _world;
 static inline bool ecsIsWorldValid(void) 
 { return _world != NULL; }
 
+#define ENSURE_AFTER_INIT JUST_ASSERT_DEBUG_MESSAGE(ecsIsWorldValid(), "[ECS] : World not initialized!");
+
 /**
  * @brief : Gets archetype from id
  * @param ARCHETYPE : The Archetype id
  * @return : Pointer to the refered archhetype
  */
 Archetype* ecsInternalGetArchetype(ArchetypeID ARCHETYPE);
+
+/**
+ * @brief : creeats an entity handle out of index and generation
+ * @param INDEX : The row id of the entity in its archetype
+ * @param GENERATION : The amount of time, this slot has been reused.
+ * @return : A constructed handle
+ */
+static inline EntityID ecsMakeEntity(uint32_t INDEX, uint32_t GENERATION)
+{
+  return ((uint64_t) GENERATION << 32) | (uint32_t) INDEX;
+}
+
+/**
+ * @brief : extracts the index from an entity handle
+ * @param ENTITY : The entity handle
+ * @return : the row id index in its archetype
+ */
+static inline uint32_t ecsGetEntityIndex(EntityID ENTITY)
+{
+  return (uint32_t) (ENTITY & 0xFFFFFFFF);
+}
+
+/**
+ * @brief : extracts the generation from an entity handle
+ * @param ENTITY : The entity handle
+ * @return : the amount of time this handle has been recycled
+ */
+static inline uint32_t ecsGetEntityGeneration(EntityID ENTITY)
+{
+  return (uint32_t) (ENTITY >> 32);
+}

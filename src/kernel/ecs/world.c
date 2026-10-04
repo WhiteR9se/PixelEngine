@@ -1,66 +1,65 @@
-#include <kernel/ecs/world.h>
+/**
+ * @file : ecs/world.c
+ * @brief : Handles world initialize destroy and other functions
+ */
+
+#include <kernel/ecs/_internal.h>
 #include <stddef.h>
 #include <limits.h>
 #include <stdint.h>
 
-/// @brief : Only thing to note about a component is its size
-typedef size_t ComponentInfo;
 
-/// @brief : defines an archetype
-typedef struct archetype
-{
-  ArchetypeID       mask;                                   ///< The bitmask of an archetype
-  size_t            entityCount;                            ///< How many entities of this archectype 
-  size_t            componentCount;                         ///< How many components in this archetype
-  JustDynamicArray* components;                             ///< An array of dynamic arrays of components, vector<vector<Component>>
-  uint8_t           compIdToColumnMap[MAX_COMPONENT_COUNT]; ///< Maps component ids to column index
-} Archetype;
-
-/// @brief : global state of the ecs system
-typedef struct ecsWorld
-{
-  JustDynamicArray  archetypeRegistry;
-  size_t            componentIndex;
-  ComponentInfo     componentRegistry[];
-} ECSWorld;
-
-static ECSWorld*    world     = NULL;
-static const char*  worldTag  = "ECS_WORLD";
-
-#define ENSURE_AFTER_INIT JUST_ASSERT_DEBUG(world != NULL);
+static const char* worldTag = "ECS";
+ECSWorld* _world = NULL;
 
 JUST_API void ecsInit(void)
 {
   JUST_LOG_DEBUG("Trying to initialize ECS");
 
-  JUST_ASSERT_DEBUG_MESSAGE(world == NULL, "[ECS WORLD] : Trying to double initialize ECS");
+  // - - - check initialize once
+  JUST_ASSERT_DEBUG_MESSAGE(!ecsIsWorldValid(), "[ECS] : Trying to double initialize ECS");
 
+  // - - - remove memory limit
   size_t noLimit = 0;
   justMemorySetLimit(noLimit, worldTag);
 
+  // - - - allocate memory for the world 
   size_t memNeeded = sizeof(ECSWorld) + (MAX_COMPONENT_COUNT * sizeof(ComponentInfo));
-  world = JUST_MALLOC_TAGGED(memNeeded, worldTag);
-  JUST_ASSERT_DEBUG_MESSAGE(world != NULL, "[ECS WORLD] : Failed to allocate enough memory ");
+  _world = JUST_MALLOC_TAGGED(memNeeded, worldTag);
+  JUST_ASSERT_DEBUG_MESSAGE(ecsIsWorldValid(), "[ECS] : Failed to allocate enough memory ");
 
-  bool ok = JUST_DARRAY_INIT_TAGGED(&(world->archetypeRegistry), 0, Archetype, worldTag);
-  JUST_ASSERT_DEBUG_MESSAGE(ok, "[ECS WORLD] : Could not initialize archetype registry");
-  JUST_LOG_TRACE("[ECS WORLD] : Initialized archetype registry");
+  // - - - allocate memory for archetypeRegistry
+  bool ok = JUST_DARRAY_INIT_TAGGED(&(_world->archetypeRegistry), 0, Archetype, worldTag);
+  JUST_ASSERT_DEBUG_MESSAGE(ok, "[ECS] : Could not initialize archetype registry");
 
-  for (uint8_t i = 0; i < MAX_COMPONENT_COUNT; ++i) world->componentRegistry[i] = SIZE_MAX;
-  world->componentIndex = 0;
-  JUST_LOG_TRACE("[ECS WORLD] : Initialized component registry");
+  // - - - allocate memory for entity registry
+  ok = JUST_DARRAY_INIT_TAGGED(&(_world->entityRegistry), 0, EntityRecord, worldTag);
+  JUST_ASSERT_DEBUG_MESSAGE(ok, "[ECS] : Failed to init entity records");
 
-  JUST_LOG_INFO("[ECS WORLD] : Initialized");
+  // - - - allocate memory for free indices
+  ok = JUST_DARRAY_INIT_TAGGED(&(_world->freeEntityIndices), 0, uint32_t, worldTag);
+  JUST_ASSERT_DEBUG_MESSAGE(ok, "[ECS] : Failed to init free indices stack");
+
+  // - - - initialize component registry
+  for (uint8_t i = 0; i < MAX_COMPONENT_COUNT; ++i) _world->componentRegistry[i] = SIZE_MAX;
+  _world->componentIndex = 0;
+  JUST_LOG_TRACE("[ECS] : Initialized component registry");
+
+  // - - - create the void archetype
+  ArchetypeID voidID = ecsRegisterArchetype(0, NULL);
+  JUST_ASSERT_DEBUG_MESSAGE(voidID == VOID_ARCHETYPE, "[ECS] : Failed to register VOID_ARCHETYPE");
+
+  JUST_LOG_INFO("[ECS] : Initialized world");
 }
 
 JUST_API void ecsShutdown(void)
 {
-  JUST_LOG_DEBUG("[ECS WORLD] : Shutting down");
+  JUST_LOG_DEBUG("[ECS] : Shutting down");
 
-  JUST_ASSERT_DEBUG_MESSAGE(world != NULL, "[ECS WORLD] : Trying to double shutdown or shutting down an unitialized ECS");
+  JUST_ASSERT_DEBUG_MESSAGE(ecsIsWorldValid(), "[ECS] : Trying to double shutdown or shutting down an unitialized ECS");
 
   // - - - Clear all the archetypes
-  JustDynamicArray* archRegistry  = &(world->archetypeRegistry);
+  JustDynamicArray* archRegistry  = &(_world->archetypeRegistry);
   Archetype*        archs         = JUST_DARRAY_DATA(archRegistry, Archetype);
 
   for (size_t archIndex = 0; archIndex < justDynamicArraySize(archRegistry); ++archIndex)
@@ -78,15 +77,17 @@ JUST_API void ecsShutdown(void)
     JUST_FREE(arch.components);
   }
   justDynamicArrayDestroy(archRegistry);
-  JUST_LOG_TRACE("[ECS WORLD] : Archetype Registry destroyed");
+
+  // - - - clear out the entity registry
+  justDynamicArrayDestroy(&(_world->entityRegistry));
+  justDynamicArrayDestroy(&(_world->freeEntityIndices));
 
   // - - - Clear out the component registy
-  world->componentIndex = 0;
-  JUST_LOG_TRACE("[ECS WORLD] : Component Registry destroyed");
+  _world->componentIndex = 0;
 
   // - - - Destroy the world
-  JUST_FREE(world);
-  world = NULL;
+  JUST_FREE(_world);
+  _world = NULL;
 
-  JUST_LOG_INFO("[ECS WORLD] : Shut down");
+  JUST_LOG_INFO("[ECS] : Shut down");
 }

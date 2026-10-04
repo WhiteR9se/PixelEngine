@@ -1,12 +1,20 @@
+/**
+ * @file : ecs/archetype.c
+ * @brief : Handles archetype related functionality
+ */
+
 #include <kernel/ecs/_internal.h>
 #include <stdio.h>
 
 Archetype* ecsInternalGetArchetype(ArchetypeID ID)
-{ &JUST_DARRAY_GET(&(_world->archetypeRegistry), Archetype, ID); }
+{
+  ENSURE_AFTER_INIT
+  return &JUST_DARRAY_GET(&(_world->archetypeRegistry), Archetype, ID); 
+}
 
 JUST_API ArchetypeID ecsRegisterArchetype(size_t COMPONENT_COUNT, ComponentID COMPONENT_IDS[])
 {
-  JUST_ASSERT_DEBUG_MESSAGE(COMPONENT_COUNT > 0, "[ECS] : Cannot register an archetype with 0 COMPONENT_COUNT");
+  ENSURE_AFTER_INIT
 
   // - - - Create component mask
   uint64_t mask = 0;
@@ -39,19 +47,24 @@ JUST_API ArchetypeID ecsRegisterArchetype(size_t COMPONENT_COUNT, ComponentID CO
   // - - - Allocate enough memory for component storage
   char tag[32];
   snprintf(tag, sizeof(tag), "Arch_%zu", id);
-  size_t sizeReq      = sizeof(JustDynamicArray) * COMPONENT_COUNT;
-  newArch->components = JUST_MALLOC_TAGGED(sizeReq, tag);
 
-  // - - - make the mapping again
-  for (size_t i = 0; i < COMPONENT_COUNT; ++i)
+  if (COMPONENT_COUNT > 0)
   {
-    ComponentID compId                  = COMPONENT_IDS[i];
-    newArch->compIdToColumnMap[compId]  = (uint8_t)i;
-    size_t compSize                     = _world->componentRegistry[compId];
+    size_t sizeReq      = sizeof(JustDynamicArray) * COMPONENT_COUNT;
+    newArch->components = JUST_MALLOC_TAGGED(sizeReq, tag);
 
-    bool ok = justDynamicArrayCreate(&(newArch->components[i]), 0, compSize, NULL, tag);
-    JUST_ASSERT_DEBUG_MESSAGE(ok, "[ECS] : Failed to create column array");
+    // - - - make the mapping again
+    for (size_t i = 0; i < COMPONENT_COUNT; ++i)
+    {
+      ComponentID compId                  = COMPONENT_IDS[i];
+      newArch->compIdToColumnMap[compId]  = (uint8_t)i;
+      size_t compSize                     = _world->componentRegistry[compId];
+
+      bool ok = justDynamicArrayCreate(&(newArch->components[i]), 0, compSize, NULL, tag);
+      JUST_ASSERT_DEBUG_MESSAGE(ok, "[ECS] : Failed to create column array");
+    }
   }
+  else newArch->components = NULL;
 
   // - - - Get entitites ready
   bool ok = justDynamicArrayCreate(&(newArch->entityIds), 0, sizeof(EntityID), NULL, tag);

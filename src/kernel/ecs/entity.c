@@ -1,3 +1,8 @@
+/**
+ * @file : ecs/entity.c
+ * @brief : Handles entity functionality
+ */
+
 #include <kernel/ecs/world.h>
 #include <kernel/ecs/_internal.h>
 #include <stdint.h>
@@ -5,6 +10,7 @@
 JUST_API EntityID ecsCreateEntity(ArchetypeID ARCHETYPE)
 {
   JUST_ASSERT_DEBUG_MESSAGE(ARCHETYPE < justDynamicArraySize(&(_world->archetypeRegistry)), "[ECS] : Invalid ArchetypeID");
+  ENSURE_AFTER_INIT
 
   Archetype*        arch            = ecsInternalGetArchetype(ARCHETYPE);
   JustDynamicArray* entityRegistry  = &(_world->entityRegistry);
@@ -53,11 +59,12 @@ JUST_API EntityID ecsCreateEntity(ArchetypeID ARCHETYPE)
 JUST_API void ecsDestroyEntity(EntityID ENTITY)
 {
   JUST_ASSERT_DEBUG_MESSAGE(ecsIsEntityValid(ENTITY), "[ECS] : Attempted to destroy an Invalid ENTITY");
+  ENSURE_AFTER_INIT
 
   JustDynamicArray* entityRegistry = &(_world->entityRegistry);
 
   // - - - Get the record from the entity id
-  uint32_t      index   = ecsEntityGetIndex(ENTITY);
+  uint32_t      index   = ecsGetEntityIndex(ENTITY);
   EntityRecord* record  = (EntityRecord*) justDynamicArrayAt(entityRegistry, index);
 
   // - - - Get Archetype data from the record
@@ -79,8 +86,8 @@ JUST_API void ecsDestroyEntity(EntityID ENTITY)
       colArray->size--;
     }
 
-    EntityID* deadEntitySlot = (EntityID*) justDynamicArrayAt(entityRegistry, deadRow);
-    EntityID* lastEntitySlot = (EntityID*) justDynamicArrayAt(entityRegistry, lastRow);
+    EntityID* deadEntitySlot = (EntityID*) justDynamicArrayAt(&(arch->entityIds), deadRow);
+    EntityID* lastEntitySlot = (EntityID*) justDynamicArrayAt(&(arch->entityIds), lastRow);
     *deadEntitySlot = *lastEntitySlot;
     arch->entityIds.size--;
 
@@ -106,4 +113,18 @@ JUST_API void ecsDestroyEntity(EntityID ENTITY)
   record->archetypeID = INVALID_ARCHETYPE;
   record->generation++;
   justDynamicArrayPush(&(_world->freeEntityIndices), &index);
+}
+
+JUST_API bool ecsIsEntityValid(EntityID ENTITY)
+{
+  ENSURE_AFTER_INIT
+  if (ENTITY == INVALID_ENTITY) return false;
+
+  uint32_t index      = ecsGetEntityIndex(ENTITY);
+  uint32_t generation = ecsGetEntityGeneration(ENTITY);
+
+  if (index >= justDynamicArraySize(&(_world->entityRegistry))) return false;
+
+  EntityRecord* record = (EntityRecord*) justDynamicArrayAt(&(_world->entityRegistry), index);
+  return record->generation == generation && record->archetypeID != INVALID_ARCHETYPE;
 }
