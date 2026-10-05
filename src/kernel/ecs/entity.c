@@ -6,6 +6,7 @@
 #include <kernel/ecs/world.h>
 #include <kernel/ecs/_internal.h>
 #include <stdint.h>
+#include <string.h>
 
 JUST_API EntityID ecsCreateEntity(ArchetypeID ARCHETYPE)
 {
@@ -83,13 +84,13 @@ JUST_API void ecsDestroyEntity(EntityID ENTITY)
       void* lastSlot              = justDynamicArrayAt(colArray, lastRow);
 
       memcpy(deadSlot, lastSlot, colArray->elementSize);
-      colArray->size--;
+      justDynamicArrayPop(colArray, NULL);
     }
 
     EntityID* deadEntitySlot = (EntityID*) justDynamicArrayAt(&(arch->entityIds), deadRow);
     EntityID* lastEntitySlot = (EntityID*) justDynamicArrayAt(&(arch->entityIds), lastRow);
     *deadEntitySlot = *lastEntitySlot;
-    arch->entityIds.size--;
+    justDynamicArrayPop(&arch->entityIds, NULL);
 
     EntityID      movedEntity = *deadEntitySlot;
     uint32_t      movedIndex  = ecsGetEntityIndex(movedEntity);
@@ -102,11 +103,10 @@ JUST_API void ecsDestroyEntity(EntityID ENTITY)
   {
     for (size_t col = 0; col < arch->componentCount; ++col)
     {
-      arch->components[col].size--;
+      justDynamicArrayPop(&(arch->components[col]), NULL);
     }
-    arch->entityIds.size--;
+    justDynamicArrayPop(&(arch->entityIds), NULL);
   }
-
   arch->entityCount--;
 
   // - - - Invalidate records and free the entity
@@ -127,4 +127,14 @@ JUST_API bool ecsIsEntityValid(EntityID ENTITY)
 
   EntityRecord* record = (EntityRecord*) justDynamicArrayAt(&(_world->entityRegistry), index);
   return record->generation == generation && record->archetypeID != INVALID_ARCHETYPE;
+}
+
+JUST_API ArchetypeID ecsGetEntityArchetype(EntityID ENTITY)
+{
+  ENSURE_AFTER_INIT
+  if (!ecsIsEntityValid(ENTITY)) return INVALID_ARCHETYPE;
+
+  uint32_t      index   = ecsGetEntityIndex(ENTITY);
+  EntityRecord* record  = (EntityRecord*) justDynamicArrayAt(&(_world->entityRegistry), index);
+  return record->archetypeID;
 }

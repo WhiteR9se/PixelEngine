@@ -6,6 +6,7 @@
  */
 
 #include <kernel/justLibrary.h>
+#include <stdint.h>
 #define MAX_COMPONENT_COUNT 64
 
 
@@ -32,8 +33,54 @@ typedef uint64_t  EntityID;
 /// @brief : Default archetype with 0 components
 #define VOID_ARCHETYPE    (uint64_t)  0
 
+/// @brief : Iterator payload passed to system callbacks, this represents one archetype
+typedef struct ecsSystemView
+{
+  size_t    entityCount;                      ///< Total active entities in current matching batch
+  EntityID* entities;                         ///< Array of Entity handles
+  void*     components[MAX_COMPONENT_COUNT];  ///< Raw pointers to requested components
+} ECSSystemView;
+
+/// @brief : function for a system to work on an archetype
+typedef void (*ECSSystemCallback) (ECSSystemView* VIEW);
+
+/// @brief : System representation
+typedef struct ecsSystem
+{
+  uint64_t          requiredMask;       ///< Component bitmask required by system 
+  ECSSystemCallback callback;           ///< The execution logic callback
+  JustDynamicArray  matchedArchetypes;  ///< Pre-cached array of ArchetypeIDs
+} ECSSystem;
+
 
 // - - - | API | - - - 
+
+
+// - - - System - - - 
+
+/**
+ * @brief : Creates and initializes a consolidated system with matching component dependencies
+ * @param COMPONENT_COUNT : How many components does this system iterate over
+ * @param COMPONENT_IDS : Array of the component ids, this system requires
+ * @param CALLBACK : Iterate function
+ * @return : An ecs system
+ */
+JUST_API ECSSystem ecsCreateSystem(
+  size_t            COMPONENT_COUNT,
+  ComponentID       COMPONENT_IDS[],
+  ECSSystemCallback CALLBACK);
+
+/**
+ * @brief : EXecutes a single system across all matching entity archetypes
+ * @param SYSTEM : The system to run
+ */
+JUST_API void ecsRunSystem(ECSSystem* SYSTEM);
+
+/**
+ * @brief : Destroys and cleans up a system
+ * @param SYSTEM : The system to be destroyed
+ */
+JUST_API void ecsDestroySystem(ECSSystem* SYSTEM);
 
 
 // - - - World - - -
@@ -69,6 +116,19 @@ JUST_API EntityID ecsCreateEntity(ArchetypeID ARCHETYPE);
  */
 JUST_API bool ecsIsEntityValid(EntityID ENTITY);
 
+/**
+ * @brief : Returns the archetype of a particular entity
+ * @param ENTITY : Handle to the entity
+ * @return : Handle to the archetype it belongs to
+ */
+JUST_API ArchetypeID ecsGetEntityArchetype(EntityID ENTITY);
+
+/**
+ * @brief : Changes the archetype of the entity
+ * @param ENTITY : The entity whose archetype is to be changed
+ * @param TARGET_ARCHETYPE : The new archetype
+ */
+JUST_API void ecsChangeArchetype(EntityID ENTITY, ArchetypeID TARGET_ARCHETYPE);
 
 
 // - - - Component - - - 
@@ -81,6 +141,9 @@ JUST_API bool ecsIsEntityValid(EntityID ENTITY);
  */
 JUST_API ComponentID ecsRegisterComponent(size_t SIZE);
 
+/// @brief : Easy macro access with type
+#define ECS_REGISTER_COMPONENT(TYPE) ecsRegisterComponent(sizeof(TYPE))
+
 /**
  * @brief : Tells whether a particular handle points to a registered component
  * @param COMPONENT : The component handle
@@ -89,6 +152,39 @@ JUST_API ComponentID ecsRegisterComponent(size_t SIZE);
 JUST_API static inline bool ecsIsComponentValid(ComponentID COMPONENT)
 {  return COMPONENT != INVALID_COMPONENT;  }
 
+/**
+ * @brief : Returns a pointer to the component belonging to a particular entity
+ * @param ENTITY : Handle to the entity
+ * @param COMPONENT : Handle to the component type
+ * @return : a void ptr to the component memory
+ */
+JUST_API void* ecsGetComponent(EntityID ENTITY, ComponentID COMPONENT);
+
+/// @brief : Macro version with type handling
+#define ECS_GET_COMPONENT(ENTITY, COMPONENT_ID, TYPE) \
+  ((TYPE)* ecsGetComponent((ENTITY), (COMPONENT_ID)))
+
+
+/**
+ * @brief : Sets the value of a given entity's component
+ * @param COMPONENT : Handle to the component type
+ * @param DATA : Pointer to the data
+ * @warning : Make sure data is valid
+ */
+JUST_API void ecsSetComponent(EntityID ENTITY, ComponentID COMPONENT, const void* DATA);
+
+#define ECS_SET_COMPONENT(ENTITY, COMPONENT, VALUE) \
+  ecsSetComponent((ENTITY), (COMPONENT), &VALUE)
+
+
+/**
+ * @brief : Tells whether a given entity has a particular type of component or not
+ * @param ENTITY : Handle to the entity
+ * @param COMPONENT : Handle to the component type
+ * @return : true if it has it, false otherwise
+ */
+JUST_API static inline bool ecsHasComponent(EntityID ENTITY, ComponentID COMPONENT)
+{ return ecsGetComponent(ENTITY, COMPONENT) != NULL; }
 
 // - - - Archetype - - -
 

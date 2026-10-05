@@ -37,7 +37,7 @@ typedef struct archetype
 typedef struct ecsWorld
 {
   JustDynamicArray  archetypeRegistry;                      ///< Stores archetypes
-  JustDynamicArray  entityRegistry;                          ///< Stores entity records
+  JustDynamicArray  entityRegistry;                         ///< Stores entity records
   JustDynamicArray  freeEntityIndices;                      ///< Entities previously freed, so can be used again.
   size_t            componentIndex;                         ///< How many components
   ComponentInfo     componentRegistry[MAX_COMPONENT_COUNT]; ///< Component storage
@@ -94,3 +94,11 @@ static inline uint32_t ecsGetEntityGeneration(EntityID ENTITY)
 {
   return (uint32_t) (ENTITY >> 32);
 }
+
+/**
+ * @brief : Returns an archetype from a mask
+ * @note : if the archetype does not exist, it will be created
+ * @param MASK : The bitmask of the ecs
+ * @return : Handle to the archetype
+ */
+ArchetypeID ecsInternalFindOrCreateArchetypeByMask(uint64_t MASK);
