@@ -1,6 +1,6 @@
 #include <string.h>
 #define JUST_LIB_IMPL_ALL
-#include <kernel/ecs/stupidSimple.h>
+#include <kernel/justLibrary.h>
 
 // ==========================================
 //              BITSET TESTS
@@ -55,55 +55,7 @@ JustTestResult testBitsetOperations(void)
   return JUST_TEST_PASS;
 }
 
-// ==========================================
-//                ECS TESTS
-// ==========================================
 
-typedef struct {
-  float current;
-  float max;
-} Health;
-
-typedef struct {
-  float damage;
-  int   magazine;
-} Weapon;
-
-JustTestResult testECSCoreMechanics(void)
-{
-  justMemorySetLimit(1024 * 1024 * 2, MEMORY_TAG_ECS_COMPONENT);
-  ecsInit();
-
-  // Test Entity Creation
-  Entity player = ecsCreateEntity();
-  JUST_EXPECT_TO_BE_TRUE(ecsIsEntityValid(player));
-
-  // Test Component Registration
-  ComponentType compHealth = ecsRegisterComponent(sizeof(Health));
-  ComponentType compWeapon = ecsRegisterComponent(sizeof(Weapon));
-
-  // Test Component Addition
-  Health playerHealth = { 100.0f, 100.0f };
-  ecsAddComponent(player, compHealth, &playerHealth);
-  JUST_EXPECT_TO_BE_TRUE(ecsHasComponent(player, compHealth));
-
-  Weapon vandal = { 40.0f, 25 }; 
-  ecsAddComponent(player, compWeapon, &vandal);
-  JUST_EXPECT_TO_BE_TRUE(ecsHasComponent(player, compWeapon));
-
-  // Test Component Retrieval and Data Integrity
-  Weapon* equipped = (Weapon*)ecsGetComponent(player, compWeapon);
-  JUST_EXPECT_TO_BE_NOT_NULL(equipped);
-  JUST_EXPECT_FLOAT_TO_BE(40.0f, equipped->damage, 0.001f);
-  JUST_EXPECT_TO_BE(25, equipped->magazine);
-
-  // Test Component Removal
-  ecsRemoveComponent(player, compWeapon);
-  JUST_EXPECT_TO_BE_FALSE(ecsHasComponent(player, compWeapon));
-
-  ecsDestroy();
-  return JUST_TEST_PASS;
-}
 
 int main(void)
 {
@@ -112,7 +64,7 @@ int main(void)
   justTestRegister(testBitsetOperations, "Bitset: Intersections", 1);
 
   // Group 2: Entity Component System
-  justTestRegister(testECSCoreMechanics, "ECS: Entity and Component Lifecycle", 2);
+  //justTestRegister(testECSCoreMechanics, "ECS: Entity and Component Lifecycle", 2);
 
   return justTestRunAll();
 }

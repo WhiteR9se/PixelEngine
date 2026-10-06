@@ -136,6 +136,7 @@ JUST_API void ecsChangeArchetype(EntityID ENTITY, ArchetypeID TARGET_ARCHETYPE);
 /**
  * @brief : Used to register a component
  * @param SIZE : How big is the component type in bytes (including padding if any)
+ * @warning : There is a limit to how many components can be registered
  * @see MAX_COMPONENT_COUNT : for how many components can be registered
  * @return : a handle to the component
  */

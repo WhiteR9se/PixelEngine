@@ -10,8 +10,8 @@
 
 JUST_API EntityID ecsCreateEntity(ArchetypeID ARCHETYPE)
 {
-  JUST_ASSERT_DEBUG_MESSAGE(ARCHETYPE < justDynamicArraySize(&(_world->archetypeRegistry)), "[ECS] : Invalid ArchetypeID");
   ENSURE_AFTER_INIT
+  JUST_ASSERT_DEBUG_MESSAGE(ARCHETYPE < justDynamicArraySize(&(_world->archetypeRegistry)), "[ECS] : Invalid ArchetypeID");
 
   Archetype*        arch            = ecsInternalGetArchetype(ARCHETYPE);
   JustDynamicArray* entityRegistry  = &(_world->entityRegistry);

@@ -790,10 +790,10 @@ JUST_API size_t justMemoryGetLimit(const char* TAG);
 /// @brief : Tag Entry, how much per tag
 typedef struct justTagEntry
 {
-  const char* name;
-  size_t      allocatedBytes;
-  size_t      allocationLimit;
-  size_t      activeCount;
+  char    name[32];
+  size_t  allocatedBytes;
+  size_t  allocationLimit;
+  size_t  activeCount;
 } justTagEntry;
 
 /// @brief : Memory tracker header
@@ -843,8 +843,16 @@ static justTagEntry* getOrCreateTag(const char* TAG)
 
   if (registeredTagCount < JUST_MEMORY_TAG_LIMIT)
   {
-    justTagEntry* entry    = &memoryTags[registeredTagCount++];
-    entry->name             = TAG;
+    justTagEntry* entry     = &memoryTags[registeredTagCount++];
+
+    size_t tagLen = strlen(TAG);
+    if (tagLen >= sizeof(entry->name))
+    {
+      JUST_LOG_WARNING("[MEMORY TRACKER] : Tag '%s' length (%zu) exceeds max tag name length (%zu)! Truncating tag.",
+                        TAG, tagLen, sizeof(entry->name) - 1);
+    }
+    snprintf(entry->name, sizeof(entry->name), "%s", TAG);
+
     entry->allocatedBytes   = 0;
     entry->allocationLimit  = JUST_MEMORY_ALLOC_DEFAULT_LIMIT;
     entry->activeCount      = 0;
@@ -2196,8 +2204,8 @@ typedef struct justDynamicArray
   size_t                  capacity;     ///< Total number of elements allocated
   size_t                  size;         ///< Current number of elements stored
   size_t                  elementSize;  ///< Size of an individual element in bytes
-  const char*             tag;          ///< Why are you creating this
   JustLinearAllocator*    allocator;    ///< Optional custom linear allocator, NULL for the vector to manage its own memory
+  char                    tag[32];      ///< Why are you creating this
 } JustDynamicArray;
 
 
@@ -2209,6 +2217,7 @@ typedef struct justDynamicArray
  * @param INITIAL_CAPACITY : Initial element capacity (0 defaults to 8)
  * @param ELEMENT_SIZE : Size of each element in bytes 
  * @param ALLOCATOR : Pointer to linear allocator or NULL for the dynamic array to allocate memory on its own 
+ * @warning : TAG is atmost 32 bytes
  * @return true if initialized successfully, false otherwise
 */
 JUST_API bool justDynamicArrayCreate(
@@ -2427,10 +2436,10 @@ JUST_API bool justDynamicArrayShrinkToFit(JustDynamicArray* DARRAY);
 
 bool justDynamicArrayCreate(
   JustDynamicArray*    DARRAY,
-  size_t                INITIAL_CAPACITY,
-  size_t                ELEMENT_SIZE,
+  size_t               INITIAL_CAPACITY,
+  size_t               ELEMENT_SIZE,
   JustLinearAllocator* ALLOCATOR,
-  const char*           TAG)
+  const char*          TAG)
 {
   JUST_ASSERT_DEBUG_MESSAGE(DARRAY != NULL, "[DYNAMIC DARRAY] : Cannot create a NULL DARRAY");
   JUST_ASSERT_DEBUG_MESSAGE(ELEMENT_SIZE > 0, "[DYNAMIC DARRAY] : Element size must be greater than 0");

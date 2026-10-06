@@ -48,13 +48,13 @@ JUST_API ArchetypeID ecsRegisterArchetype(size_t COMPONENT_COUNT, ComponentID CO
   memset(newArch->compIdToColumnMap, INVALID_MAPPING, sizeof(newArch->compIdToColumnMap));
 
   // - - - Allocate enough memory for component storage
-  char tag[32];
-  snprintf(tag, sizeof(tag), "Arch_%zu", id);
+  char archTag[32];
+  snprintf(archTag, sizeof(archTag), "ECS_Arch_%zu", id);
 
   if (COMPONENT_COUNT > 0)
   {
     size_t sizeReq      = sizeof(JustDynamicArray) * COMPONENT_COUNT;
-    newArch->components = JUST_MALLOC_TAGGED(sizeReq, tag);
+    newArch->components = JUST_MALLOC_TAGGED(sizeReq, archTag);
 
     // - - - make the mapping again
     for (size_t i = 0; i < COMPONENT_COUNT; ++i)
@@ -63,14 +63,14 @@ JUST_API ArchetypeID ecsRegisterArchetype(size_t COMPONENT_COUNT, ComponentID CO
       newArch->compIdToColumnMap[compId]  = (uint8_t)i;
       size_t compSize                     = _world->componentRegistry[compId];
 
-      bool ok = justDynamicArrayCreate(&(newArch->components[i]), 0, compSize, NULL, tag);
+      bool ok = justDynamicArrayCreate(&(newArch->components[i]), 0, compSize, NULL, archTag);
       JUST_ASSERT_DEBUG_MESSAGE(ok, "[ECS] : Failed to create column array");
     }
   }
   else newArch->components = NULL;
 
   // - - - Get entitites ready
-  bool ok = justDynamicArrayCreate(&(newArch->entityIds), 0, sizeof(EntityID), NULL, tag);
+  bool ok = justDynamicArrayCreate(&(newArch->entityIds), 0, sizeof(EntityID), NULL, archTag);
   JUST_ASSERT_DEBUG_MESSAGE(ok, "[ECS] : Failed to create entity ID array");
 
   return id;

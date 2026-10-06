@@ -14,7 +14,7 @@ ECSWorld* _world = NULL;
 
 JUST_API void ecsInit(void)
 {
-  JUST_LOG_DEBUG("Trying to initialize ECS");
+  JUST_LOG_DEBUG("[ECS] : Trying to initialize ECS");
 
   // - - - check initialize once
   JUST_ASSERT_DEBUG_MESSAGE(!ecsIsWorldValid(), "[ECS] : Trying to double initialize ECS");
@@ -27,18 +27,22 @@ JUST_API void ecsInit(void)
   size_t memNeeded = sizeof(ECSWorld) + (MAX_COMPONENT_COUNT * sizeof(ComponentInfo));
   _world = JUST_MALLOC_TAGGED(memNeeded, worldTag);
   JUST_ASSERT_DEBUG_MESSAGE(ecsIsWorldValid(), "[ECS] : Failed to allocate enough memory ");
+  JUST_LOG_TRACE("[ECS] : Initialized world");
 
   // - - - allocate memory for archetypeRegistry
   bool ok = JUST_DARRAY_INIT_TAGGED(&(_world->archetypeRegistry), 0, Archetype, worldTag);
   JUST_ASSERT_DEBUG_MESSAGE(ok, "[ECS] : Could not initialize archetype registry");
+  JUST_LOG_TRACE("[ECS] : Initialized archetype registry");
 
   // - - - allocate memory for entity registry
   ok = JUST_DARRAY_INIT_TAGGED(&(_world->entityRegistry), 0, EntityRecord, worldTag);
   JUST_ASSERT_DEBUG_MESSAGE(ok, "[ECS] : Failed to init entity records");
+  JUST_LOG_TRACE("[ECS] : Initialized entity registry");
 
   // - - - allocate memory for free indices
   ok = JUST_DARRAY_INIT_TAGGED(&(_world->freeEntityIndices), 0, uint32_t, worldTag);
   JUST_ASSERT_DEBUG_MESSAGE(ok, "[ECS] : Failed to init free indices stack");
+  JUST_LOG_TRACE("[ECS] : Initialized free entity registry");
 
   // - - - initialize component registry
   for (uint8_t i = 0; i < MAX_COMPONENT_COUNT; ++i) _world->componentRegistry[i] = SIZE_MAX;
@@ -48,8 +52,9 @@ JUST_API void ecsInit(void)
   // - - - create the void archetype
   ArchetypeID voidID = ecsRegisterArchetype(0, NULL);
   JUST_ASSERT_DEBUG_MESSAGE(voidID == VOID_ARCHETYPE, "[ECS] : Failed to register VOID_ARCHETYPE");
+  JUST_LOG_TRACE("[ECS] : Void archetype registered");
 
-  JUST_LOG_INFO("[ECS] : Initialized world");
+  JUST_LOG_DEBUG("[ECS] : Initialized world");
 }
 
 JUST_API void ecsShutdown(void)

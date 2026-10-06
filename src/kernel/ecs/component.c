@@ -3,13 +3,14 @@
  * @brief : Handles component related tasks
 */
 
-#include "kernel/ecs/world.h"
 #include <kernel/ecs/_internal.h>
 #include <stdint.h>
 
 
 JUST_API ComponentID ecsRegisterComponent(size_t SIZE)
 {
+  JUST_LOG_DEBUG("[ECS] : Trying to register a component with size %zu", SIZE);
+
   ENSURE_AFTER_INIT
   JUST_ASSERT_DEBUG_MESSAGE(SIZE > 0, "[ECS] : SIZE must be greater than 0 to register a component");
 
@@ -19,6 +20,7 @@ JUST_API ComponentID ecsRegisterComponent(size_t SIZE)
   _world->componentRegistry[index] = SIZE;
   _world->componentIndex++;
 
+  JUST_LOG_DEBUG("[ECS] : Component Registered : %zu with size : %zu", index, SIZE);
   return index;
 }
 
