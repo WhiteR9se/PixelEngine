@@ -19,9 +19,9 @@ JUST_API void ecsInit(void)
   // - - - check initialize once
   JUST_ASSERT_DEBUG_MESSAGE(!ecsIsWorldValid(), "[ECS] : Trying to double initialize ECS");
 
-  // - - - remove memory limit
-  size_t noLimit = 0;
-  justMemorySetLimit(noLimit, worldTag);
+  // - - - memory limit is 16 MB
+  size_t limit = 1024 * 1024 * 16;
+  justMemorySetLimit(limit, worldTag);
 
   // - - - allocate memory for the world 
   size_t memNeeded = sizeof(ECSWorld) + (MAX_COMPONENT_COUNT * sizeof(ComponentInfo));

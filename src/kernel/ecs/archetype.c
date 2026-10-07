@@ -53,7 +53,9 @@ JUST_API ArchetypeID ecsRegisterArchetype(size_t COMPONENT_COUNT, ComponentID CO
 
   if (COMPONENT_COUNT > 0)
   {
-    size_t sizeReq      = sizeof(JustDynamicArray) * COMPONENT_COUNT;
+    size_t sizeReq  = sizeof(JustDynamicArray) * COMPONENT_COUNT;
+    size_t limit    = 1024 * 1024 * 4; // 4 MB limit
+    justMemorySetLimit(limit, archTag);
     newArch->components = JUST_MALLOC_TAGGED(sizeReq, archTag);
 
     // - - - make the mapping again
@@ -103,22 +105,28 @@ ArchetypeID ecsInternalFindOrCreateArchetypeByMask(uint64_t MASK)
 
 JUST_API void ecsChangeArchetype(EntityID ENTITY, ArchetypeID TARGET_ARCHETYPE)
 {
-  JUST_ASSERT_DEBUG_MESSAGE(ecsIsEntityValid(ENTITY), "[ECS] : Cannot change archetype of an invlaid ENTITY");
+  JUST_ASSERT_DEBUG_MESSAGE(ecsIsEntityValid(ENTITY), "[ECS] : Cannot change archetype of an invalid ENTITY");
   JUST_ASSERT_DEBUG_MESSAGE(ecsIsArchetypeValid(TARGET_ARCHETYPE), "[ECS] : Cannot change to an invalid TARGET_ARCHETYPE");
   JUST_ASSERT_DEBUG_MESSAGE(ecsGetEntityArchetype(ENTITY) != TARGET_ARCHETYPE, "[ECS] : TARGET_ARCHETYPE is the same as current archetype");
 
-  // - - - Retreive data on entity
-  uint32_t      index     = ecsGetEntityIndex(ENTITY);
-  EntityRecord* record    = (EntityRecord*) justDynamicArrayAt(&(_world->entityRegistry), index);
+  // - - - Retrieve data on entity
+  uint32_t      index  = ecsGetEntityIndex(ENTITY);
+  EntityRecord* record = (EntityRecord*) justDynamicArrayAt(&(_world->entityRegistry), index);
   
-  // - - - retrivee data on archetype
+  // - - - Retrieve data on archetype
   ArchetypeID srcArchID = record->archetypeID;
   Archetype*  srcArch   = ecsInternalGetArchetype(srcArchID);
   Archetype*  dstArch   = ecsInternalGetArchetype(TARGET_ARCHETYPE);
   uint32_t    srcRow    = record->rowIndex;
   uint32_t    dstRow    = (uint32_t) dstArch->entityCount;
 
-  // - - - Copy common components from src columns to dst columns
+  // 1. Allocate a new row across ALL destination columns first
+  for (size_t col = 0; col < dstArch->componentCount; ++col)
+  {
+    justDynamicArrayEmplace(&(dstArch->components[col]));
+  }
+
+  // 2. Copy matching/common components from src columns to dst columns
   for (uint8_t componentID = 0; componentID < _world->componentIndex; ++componentID)
   {
     uint8_t srcCol = srcArch->compIdToColumnMap[componentID];
@@ -136,11 +144,11 @@ JUST_API void ecsChangeArchetype(EntityID ENTITY, ArchetypeID TARGET_ARCHETYPE)
   justDynamicArrayPush(&(dstArch->entityIds), &ENTITY);
   dstArch->entityCount++;
 
-  // - - - swap and pop dead row from source archetype
+  // - - - Swap and pop dead row from source archetype
   uint32_t lastSrcRow = (uint32_t) (srcArch->entityCount - 1);
   if (srcRow != lastSrcRow)
   {
-    // - - - swap and pop all component data
+    // - - - Swap and pop all component data
     for (uint8_t col = 0; col < srcArch->componentCount; ++col)
     {
       JustDynamicArray* colArray = &(srcArch->components[col]);
@@ -151,20 +159,18 @@ JUST_API void ecsChangeArchetype(EntityID ENTITY, ArchetypeID TARGET_ARCHETYPE)
       justDynamicArrayPop(colArray, NULL);
     }
 
-    // - - - swap and pop entity handle
+    // - - - Swap and pop entity handle
     EntityID* deadEntitySlot = (EntityID*) justDynamicArrayAt(&(srcArch->entityIds), srcRow);
     EntityID* lastEntitySlot = (EntityID*) justDynamicArrayAt(&(srcArch->entityIds), lastSrcRow);
     *deadEntitySlot = *lastEntitySlot;
     justDynamicArrayPop(&(srcArch->entityIds), NULL);
   
-    // - - - swap and pop entity registry data
+    // - - - Swap and pop entity registry data
     EntityID      movedEntity = *deadEntitySlot;
     uint32_t      movedIndex  = ecsGetEntityIndex(movedEntity);
     EntityRecord* movedRecord = (EntityRecord*) justDynamicArrayAt(&(_world->entityRegistry), movedIndex);
     movedRecord->rowIndex     = srcRow;
   }
-
-  // - - - otherwise, it is easy, just reduce size
   else
   {
     for (size_t col = 0; col < srcArch->componentCount; ++col)

@@ -2,9 +2,9 @@
 #include <kernel/ecs/world.h>
 #include <stdint.h>
 
-JUST_API ECSSystem ecsCreateSystem(
+JUST_API ECSSystem ecsRegisterSystem(
   size_t            COMPONENT_COUNT, 
-  ComponentID*      COMPONENT_IDS, 
+  ComponentID       COMPONENT_IDS[], 
   ECSSystemCallback CALLBACK)
 {
   ENSURE_AFTER_INIT

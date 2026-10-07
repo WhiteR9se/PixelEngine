@@ -65,7 +65,7 @@ typedef struct ecsSystem
  * @param CALLBACK : Iterate function
  * @return : An ecs system
  */
-JUST_API ECSSystem ecsCreateSystem(
+JUST_API ECSSystem ecsRegisterSystem(
   size_t            COMPONENT_COUNT,
   ComponentID       COMPONENT_IDS[],
   ECSSystemCallback CALLBACK);
