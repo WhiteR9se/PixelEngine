@@ -43,12 +43,13 @@ ifeq ($(DETECTED_OS),Windows)
   endif
 
   # File finding
-  MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/sampleGame/main.c
+	MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/sampleGame/main.c $(SRC_DIR)/sampleGame/windowDemo.c
   KERNEL_SRCS := $(shell find $(SRC_DIR)/kernel -name '*.c')
+	PLUGIN_SRCS := $(shell find $(SRC_DIR)/plugins -name '*.c')
   RAW_SRCS    := $(shell find $(SRC_DIR) -name '*.c')
-  COMMON_SRCS := $(filter-out $(MAIN_SRCS) $(KERNEL_SRCS) , $(RAW_SRCS))
+  COMMON_SRCS := $(filter-out $(MAIN_SRCS) $(KERNEL_SRCS) $(PLUGIN_SRCS) , $(RAW_SRCS))
   TEST_SRCS   := $(shell find $(TEST_DIR) -name '*.c')
-  ALL_SRCS    := $(COMMON_SRCS) $(MAIN_SRCS) $(TEST_SRCS) $(KERNEL_SRCS)
+  ALL_SRCS    := $(COMMON_SRCS) $(MAIN_SRCS) $(TEST_SRCS) $(KERNEL_SRCS) $(PLUGIN_SRCS)
 
   COMMON_OBJS := $(patsubst %.c, $(BUILD_DIR)/%.o, $(COMMON_SRCS))
   MAIN_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.o, $(MAIN_SRCS))
@@ -141,12 +142,13 @@ $(info )
 
 # - - - File Finding - - -
 
-MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/sampleGame/main.c
+MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/sampleGame/main.c $(SRC_DIR)/sampleGame/windowDemo.c
 KERNEL_SRCS := $(shell find $(SRC_DIR)/kernel -name '*.c')
+PLUGIN_SRCS := $(shell find $(SRC_DIR)/plugins -name '*.c')
 RAW_SRCS    := $(shell find $(SRC_DIR) -name '*.c')
-COMMON_SRCS := $(filter-out $(MAIN_SRCS) $(KERNEL_SRCS) , $(RAW_SRCS))
+COMMON_SRCS := $(filter-out $(MAIN_SRCS) $(KERNEL_SRCS) $(PLUGIN_SRCS) , $(RAW_SRCS))
 TEST_SRCS   := $(shell find $(TEST_DIR) -name '*.c')
-ALL_SRCS    := $(COMMON_SRCS) $(MAIN_SRCS) $(TEST_SRCS) $(KERNEL_SRCS)
+ALL_SRCS    := $(COMMON_SRCS) $(MAIN_SRCS) $(TEST_SRCS) $(KERNEL_SRCS) $(PLUGIN_SRCS)
 
 COMMON_OBJS := $(patsubst %.c, $(BUILD_DIR)/%.o, $(COMMON_SRCS))
 MAIN_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.o, $(MAIN_SRCS))
@@ -157,6 +159,15 @@ ALL_OBJS    := $(patsubst %.c, $(BUILD_DIR)/%.o, $(ALL_SRCS))
 MAIN_BINS   := $(patsubst $(SRC_DIR)/%.c, $(BIN_DIR)/%, $(MAIN_SRCS))
 TEST_BINS   := $(patsubst $(TEST_DIR)/%.c, $(BIN_DIR)/tests/%, $(TEST_SRCS))
 KERNEL_LIB  := $(BIN_DIR)/libkernel.so
+PLUGIN_OUT   := $(BIN_DIR)/plugins
+
+# -- dummy plugin system. will be filled later on. 
+DUMMY_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.o, $(filter $(SRC_DIR)/plugins/dummy/%, $(PLUGIN_SRCS)))
+DUMMY_PLUGIN := $(PLUGIN_OUT)/libdummy_window.so
+
+# -- glfw windowing
+GLFW_OBJS    := $(patsubst %.c, $(BUILD_DIR)/%.o, $(filter $(SRC_DIR)/plugins/glfw/%, $(PLUGIN_SRCS)))
+GLFW_PLUGIN  := $(PLUGIN_OUT)/libglfw_window.so
 
 HEADER_DEPS := $(ALL_OBJS:.o=.d)
 
@@ -165,11 +176,13 @@ HEADER_DEPS := $(ALL_OBJS:.o=.d)
 
 # - - - Targets - - -
 
-.PHONY: all tests runTests clean remake
+.PHONY: all tests runTests clean remake plugins
 
-all: $(KERNEL_LIB) $(MAIN_BINS) tests
+all: $(KERNEL_LIB) $(MAIN_BINS) plugins tests
 
-tests: $(KERNEL_LIB) $(TEST_BINS)
+plugins: $(GLFW_PLUGIN) $(DUMMY_PLUGIN)
+
+tests: $(KERNEL_LIB) $(TEST_BINS) $(DUMMY_PLUGIN)
 
 runTests: tests
 	@for test_exec in $(TEST_BINS); do \
@@ -191,13 +204,23 @@ remake: clean all
 
 $(KERNEL_LIB): $(KERNEL_OBJS)
 	@mkdir -p $(dir $@)
-	@$(CC) -shared -o $@ $^
+	@$(CC) -shared -o $@ $^ -ldl
 	@echo ""
 	@echo "[SHARED LIB]: $@"
 	@for obj in $(KERNEL_OBJS); do \
 		echo " └── $$obj"; \
 	done
 	@echo ""
+
+$(DUMMY_PLUGIN): $(DUMMY_OBJS)
+	@mkdir -p $(dir $@)
+	@$(CC) -shared $^ -o $@
+	@echo "[PLUGIN]: $@"
+
+$(GLFW_PLUGIN): $(GLFW_OBJS)
+	@mkdir -p $(dir $@)
+	@$(CC) -shared $^ -lglfw -o $@
+	@echo "[PLUGIN]: $@"
 
 $(MAIN_BINS): $(BIN_DIR)/%: $(BUILD_DIR)/$(SRC_DIR)/%.o $(COMMON_OBJS) $(KERNEL_LIB)
 	@mkdir -p $(dir $@)
@@ -227,6 +250,7 @@ $(TEST_BINS): $(BIN_DIR)/tests/%: $(BUILD_DIR)/$(TEST_DIR)/%.o $(COMMON_OBJS) $(
 # - - - Object compilation rules - - -
 
 $(KERNEL_OBJS): CPPFLAGS += -DENGINE_EXPORT
+$(TEST_OBJS): CPPFLAGS += -DPLUGIN_DIR=\"$(PLUGIN_OUT)\"
 
 $(ALL_OBJS): $(BUILD_DIR)/%.o: %.c
 	@mkdir -p $(dir $@)

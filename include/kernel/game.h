@@ -15,6 +15,7 @@ typedef struct engineConfig
   uint32_t    xPos;
   uint32_t    yPos;
   const char* name;
+  const char* windowPlugin; //instantiating the path for window.so
 } EngineConfig;
 
 typedef struct game
