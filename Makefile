@@ -156,6 +156,10 @@ KERNEL_OBJS := $(patsubst %.c, $(BUILD_DIR)/%.o, $(KERNEL_SRCS))
 TEST_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.o, $(TEST_SRCS))
 ALL_OBJS    := $(patsubst %.c, $(BUILD_DIR)/%.o, $(ALL_SRCS))
 
+
+
+
+
 MAIN_BINS   := $(patsubst $(SRC_DIR)/%.c, $(BIN_DIR)/%, $(MAIN_SRCS))
 TEST_BINS   := $(patsubst $(TEST_DIR)/%.c, $(BIN_DIR)/tests/%, $(TEST_SRCS))
 KERNEL_LIB  := $(BIN_DIR)/libkernel.so
@@ -169,6 +173,11 @@ DUMMY_PLUGIN := $(PLUGIN_OUT)/libdummy_window.so
 GLFW_OBJS    := $(patsubst %.c, $(BUILD_DIR)/%.o, $(filter $(SRC_DIR)/plugins/glfw/%, $(PLUGIN_SRCS)))
 GLFW_PLUGIN  := $(PLUGIN_OUT)/libglfw_window.so
 
+# -- headless windowing
+HEADLESS_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.o, $(filter $(SRC_DIR)/plugins/headless/%, $(PLUGIN_SRCS)))
+HEADLESS_PLUGIN := $(PLUGIN_OUT)/libheadless_window.so
+
+
 HEADER_DEPS := $(ALL_OBJS:.o=.d)
 
 
@@ -180,7 +189,7 @@ HEADER_DEPS := $(ALL_OBJS:.o=.d)
 
 all: $(KERNEL_LIB) $(MAIN_BINS) plugins tests
 
-plugins: $(GLFW_PLUGIN) $(DUMMY_PLUGIN)
+plugins: $(GLFW_PLUGIN) $(DUMMY_PLUGIN) $(HEADLESS_PLUGIN)
 
 tests: $(KERNEL_LIB) $(TEST_BINS) $(DUMMY_PLUGIN)
 
@@ -246,10 +255,14 @@ $(TEST_BINS): $(BIN_DIR)/tests/%: $(BUILD_DIR)/$(TEST_DIR)/%.o $(COMMON_OBJS) $(
 	@echo "  └── $(KERNEL_LIB)"
 	@echo ""
 
+$(HEADLESS_PLUGIN): $(HEADLESS_OBJS)
+	@mkdir -p $(dir $@)
+	@$(CC) -shared $^ -o $@
+	@echo "[PLUGIN]: $@"
 
 # - - - Object compilation rules - - -
 
-$(KERNEL_OBJS): CPPFLAGS += -DENGINE_EXPORT
+$(KERNEL_OBJS): CPPFLAGS += -DENGINE_EXPORT -DPLUGIN_DIR=\"$(abspath $(PLUGIN_OUT))\"
 $(TEST_OBJS): CPPFLAGS += -DPLUGIN_DIR=\"$(PLUGIN_OUT)\"
 
 $(ALL_OBJS): $(BUILD_DIR)/%.o: %.c
