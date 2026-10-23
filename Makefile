@@ -7,10 +7,11 @@ endif
 
 # - - - | Common Definitions & Directories | - - -
 
-MODE          ?= debug
+MODE        ?= debug
 INCLUDE_DIR   := include
 SRC_DIR       := src
 TEST_DIR      := tests
+PLUGIN_DIR    := plugins
 BIN_DIR       := bin/$(MODE)
 BUILD_DIR     := .build/$(MODE)
 
@@ -43,13 +44,12 @@ ifeq ($(DETECTED_OS),Windows)
   endif
 
   # File finding
-	MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/sampleGame/main.c $(SRC_DIR)/sampleGame/windowDemo.c
+  MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/sampleGame/main.c 
   KERNEL_SRCS := $(shell find $(SRC_DIR)/kernel -name '*.c')
-	PLUGIN_SRCS := $(shell find $(SRC_DIR)/plugins -name '*.c')
   RAW_SRCS    := $(shell find $(SRC_DIR) -name '*.c')
-  COMMON_SRCS := $(filter-out $(MAIN_SRCS) $(KERNEL_SRCS) $(PLUGIN_SRCS) , $(RAW_SRCS))
+  COMMON_SRCS := $(filter-out $(MAIN_SRCS) $(KERNEL_SRCS) , $(RAW_SRCS))
   TEST_SRCS   := $(shell find $(TEST_DIR) -name '*.c')
-  ALL_SRCS    := $(COMMON_SRCS) $(MAIN_SRCS) $(TEST_SRCS) $(KERNEL_SRCS) $(PLUGIN_SRCS)
+  ALL_SRCS    := $(COMMON_SRCS) $(MAIN_SRCS) $(TEST_SRCS) $(KERNEL_SRCS)
 
   COMMON_OBJS := $(patsubst %.c, $(BUILD_DIR)/%.o, $(COMMON_SRCS))
   MAIN_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.o, $(MAIN_SRCS))
@@ -69,8 +69,8 @@ ifeq ($(DETECTED_OS),Windows)
 # - - - | Building | - - -
 
 # - - - Targets - - -
-.PHONY: all tests runTests clean remake
-all: $(KERNEL_LIB) $(MAIN_BINS) tests
+.PHONY: all tests runTests clean remake plugins
+all: $(KERNEL_LIB) $(MAIN_BINS) tests plugins
 tests: $(KERNEL_LIB) $(TEST_BINS)
 
 runTests: tests
@@ -142,13 +142,12 @@ $(info )
 
 # - - - File Finding - - -
 
-MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/sampleGame/main.c $(SRC_DIR)/sampleGame/windowDemo.c
+MAIN_SRCS   := $(SRC_DIR)/editor/editor.c $(SRC_DIR)/sampleGame/main.c
 KERNEL_SRCS := $(shell find $(SRC_DIR)/kernel -name '*.c')
-PLUGIN_SRCS := $(shell find $(SRC_DIR)/plugins -name '*.c')
 RAW_SRCS    := $(shell find $(SRC_DIR) -name '*.c')
-COMMON_SRCS := $(filter-out $(MAIN_SRCS) $(KERNEL_SRCS) $(PLUGIN_SRCS) , $(RAW_SRCS))
+COMMON_SRCS := $(filter-out $(MAIN_SRCS) $(KERNEL_SRCS) , $(RAW_SRCS))
 TEST_SRCS   := $(shell find $(TEST_DIR) -name '*.c')
-ALL_SRCS    := $(COMMON_SRCS) $(MAIN_SRCS) $(TEST_SRCS) $(KERNEL_SRCS) $(PLUGIN_SRCS)
+ALL_SRCS    := $(COMMON_SRCS) $(MAIN_SRCS) $(TEST_SRCS) $(KERNEL_SRCS)
 
 COMMON_OBJS := $(patsubst %.c, $(BUILD_DIR)/%.o, $(COMMON_SRCS))
 MAIN_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.o, $(MAIN_SRCS))
@@ -156,27 +155,9 @@ KERNEL_OBJS := $(patsubst %.c, $(BUILD_DIR)/%.o, $(KERNEL_SRCS))
 TEST_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.o, $(TEST_SRCS))
 ALL_OBJS    := $(patsubst %.c, $(BUILD_DIR)/%.o, $(ALL_SRCS))
 
-
-
-
-
 MAIN_BINS   := $(patsubst $(SRC_DIR)/%.c, $(BIN_DIR)/%, $(MAIN_SRCS))
 TEST_BINS   := $(patsubst $(TEST_DIR)/%.c, $(BIN_DIR)/tests/%, $(TEST_SRCS))
 KERNEL_LIB  := $(BIN_DIR)/libkernel.so
-PLUGIN_OUT   := $(BIN_DIR)/plugins
-
-# -- dummy plugin system. will be filled later on. 
-DUMMY_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.o, $(filter $(SRC_DIR)/plugins/dummy/%, $(PLUGIN_SRCS)))
-DUMMY_PLUGIN := $(PLUGIN_OUT)/libdummy_window.so
-
-# -- glfw windowing
-GLFW_OBJS    := $(patsubst %.c, $(BUILD_DIR)/%.o, $(filter $(SRC_DIR)/plugins/glfw/%, $(PLUGIN_SRCS)))
-GLFW_PLUGIN  := $(PLUGIN_OUT)/libglfw_window.so
-
-# -- headless windowing
-HEADLESS_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.o, $(filter $(SRC_DIR)/plugins/headless/%, $(PLUGIN_SRCS)))
-HEADLESS_PLUGIN := $(PLUGIN_OUT)/libheadless_window.so
-
 
 HEADER_DEPS := $(ALL_OBJS:.o=.d)
 
@@ -187,11 +168,9 @@ HEADER_DEPS := $(ALL_OBJS:.o=.d)
 
 .PHONY: all tests runTests clean remake plugins
 
-all: $(KERNEL_LIB) $(MAIN_BINS) plugins tests
+all: $(KERNEL_LIB) $(MAIN_BINS) tests plugins
 
-plugins: $(GLFW_PLUGIN) $(DUMMY_PLUGIN) $(HEADLESS_PLUGIN)
-
-tests: $(KERNEL_LIB) $(TEST_BINS) $(DUMMY_PLUGIN)
+tests: $(KERNEL_LIB) $(TEST_BINS)
 
 runTests: tests
 	@for test_exec in $(TEST_BINS); do \
@@ -213,23 +192,13 @@ remake: clean all
 
 $(KERNEL_LIB): $(KERNEL_OBJS)
 	@mkdir -p $(dir $@)
-	@$(CC) -shared -o $@ $^ -ldl
+	@$(CC) -shared -o $@ $^
 	@echo ""
 	@echo "[SHARED LIB]: $@"
 	@for obj in $(KERNEL_OBJS); do \
 		echo " └── $$obj"; \
 	done
 	@echo ""
-
-$(DUMMY_PLUGIN): $(DUMMY_OBJS)
-	@mkdir -p $(dir $@)
-	@$(CC) -shared $^ -o $@
-	@echo "[PLUGIN]: $@"
-
-$(GLFW_PLUGIN): $(GLFW_OBJS)
-	@mkdir -p $(dir $@)
-	@$(CC) -shared $^ -lglfw -o $@
-	@echo "[PLUGIN]: $@"
 
 $(MAIN_BINS): $(BIN_DIR)/%: $(BUILD_DIR)/$(SRC_DIR)/%.o $(COMMON_OBJS) $(KERNEL_LIB)
 	@mkdir -p $(dir $@)
@@ -255,22 +224,36 @@ $(TEST_BINS): $(BIN_DIR)/tests/%: $(BUILD_DIR)/$(TEST_DIR)/%.o $(COMMON_OBJS) $(
 	@echo "  └── $(KERNEL_LIB)"
 	@echo ""
 
-$(HEADLESS_PLUGIN): $(HEADLESS_OBJS)
-	@mkdir -p $(dir $@)
-	@$(CC) -shared $^ -o $@
-	@echo "[PLUGIN]: $@"
 
 # - - - Object compilation rules - - -
 
-$(KERNEL_OBJS): CPPFLAGS += -DENGINE_EXPORT -DPLUGIN_DIR=\"$(abspath $(PLUGIN_OUT))\"
-$(TEST_OBJS): CPPFLAGS += -DPLUGIN_DIR=\"$(PLUGIN_OUT)\"
+$(KERNEL_OBJS): CPPFLAGS += -DENGINE_EXPORT
 
 $(ALL_OBJS): $(BUILD_DIR)/%.o: %.c
 	@mkdir -p $(dir $@)
-	@echo "  [CC]   $<"
+	@echo "  [CC]    $<"
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 
 endif
+
+# - - - | Plugins Target | - - -
+plugins:
+	@if [ -d "$(PLUGIN_DIR)" ]; then \
+		for dir in $(PLUGIN_DIR)/*/; do \
+			if [ -d "$$dir" ]; then \
+				if output=$$( $(MAKE) -C "$$dir" 2>&1 ); then \
+					echo "[PLUGIN]: $$dir"; \
+				else \
+					echo ""; \
+					echo "[PLUGIN ERROR]: $$dir failed to compile."; \
+					echo "$$output"; \
+					echo ""; \
+				fi; \
+			fi; \
+		done; \
+	else \
+		echo "Plugin directory '$(PLUGIN_DIR)' not found. Skipping plugins."; \
+	fi
 
 -include $(HEADER_DEPS)

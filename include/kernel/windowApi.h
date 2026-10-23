@@ -2,6 +2,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <justLibrary.h>
+
+
 
 #if defined(_WIN32)
   #define JUST_PLUGIN_API __declspec(dllexport)
@@ -20,4 +23,8 @@ typedef struct windowAPI
 #define JUST_WINDOW_API_SYMBOL "getWindowAPI"
 
 typedef const WindowAPI* (*GetWindowAPIFunc)(void);
+
+JUST_API bool pluginManagerLoadWindow(const char* PATH);
+JUST_API void pluginManagerUnloadWindow(void);
+JUST_API const WindowAPI* pluginManagerGetWindow(void);
 

@@ -4,10 +4,6 @@
 #include <kernel/windowApi.h>
 #include <stdint.h>
 
-JUST_API bool pluginManagerLoadWindow(const char* PATH);
-JUST_API void pluginManagerUnloadWindow(void);
-JUST_API const WindowAPI* pluginManagerGetWindow(void);
-
 typedef struct enginePluginManifest
 {
   const char* name;
