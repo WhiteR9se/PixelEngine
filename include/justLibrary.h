@@ -215,6 +215,8 @@ extern "C" {
  * @see logger.c 
 */
 
+#include <stdio.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -308,6 +310,19 @@ static inline void justLogNoOp(const char* NOTHING, ...) { (void)NOTHING; }
 
 #define JUST_LOG_CLEAR() printf("\033[H\033[J")
 
+/**
+ * @brief : Sets the output stream
+ * @param OUTPUT_STREAM : The stream to redirect to
+ * @warning : You are responsible for handling FILE* being valid
+ */
+JUST_API void justLogSetOutputStream(FILE* OUTPUT_STREAM);
+
+/**
+ * @brief : Sets the error stream
+ * @param ERROR_STREAM : The stream to redirect to
+ * @warning : You are responsible for handling FILE* being valid
+ */
+JUST_API void justLogSetErrorStream(FILE* ERROR_STREAM);
 
 #ifdef __cplusplus
 }
@@ -332,6 +347,10 @@ static inline void justLogNoOp(const char* NOTHING, ...) { (void)NOTHING; }
 #include <stdlib.h>
 
 
+static FILE* stream     = NULL;
+static FILE* errStream  = NULL;
+
+
 // - - - Writing Controls - - - 
 
 
@@ -342,18 +361,17 @@ static inline void justLogNoOp(const char* NOTHING, ...) { (void)NOTHING; }
  */
 static void writeConsole(const char* MESSAGE, LogLevel COLOR)
 {
-  FILE*       stream    = NULL;
   const char* colorStr  = NULL;
 
   switch (COLOR)
   {
-    case LOG_LEVEL_FATAL    : colorStr = "1;97;41"; stream = stderr; break;
-    case LOG_LEVEL_ERROR    : colorStr = "1;31";    stream = stderr; break;
-    case LOG_LEVEL_WARNING  : colorStr = "33";      stream = stdout; break;
-    case LOG_LEVEL_INFO     : colorStr = "32";      stream = stdout; break;
-    case LOG_LEVEL_DEBUG    : colorStr = "36";      stream = stdout; break;
-    case LOG_LEVEL_TRACE    : colorStr = "90";      stream = stdout; break;
-    default                 : colorStr = "0";       stream = stdout; break;
+    case LOG_LEVEL_FATAL    : colorStr = "1;97;41"; errStream == NULL ? errStream = stderr : errStream; break;
+    case LOG_LEVEL_ERROR    : colorStr = "1;31";    errStream == NULL ? errStream = stderr : errStream; break;
+    case LOG_LEVEL_WARNING  : colorStr = "33";      stream    == NULL ? stream    = stdout : stream;    break;
+    case LOG_LEVEL_INFO     : colorStr = "32";      stream    == NULL ? stream    = stdout : stream;    break;
+    case LOG_LEVEL_DEBUG    : colorStr = "36";      stream    == NULL ? stream    = stdout : stream;    break;
+    case LOG_LEVEL_TRACE    : colorStr = "90";      stream    == NULL ? stream    = stdout : stream;    break;
+    default                 : colorStr = "0";       stream    == NULL ? stream    = stdout : stream;    break;
   }
 
   #if PRINT_LOG_COLORS == 1
@@ -362,6 +380,8 @@ static void writeConsole(const char* MESSAGE, LogLevel COLOR)
     (void) colorStr;
     fprintf(stream, "%s\n", MESSAGE); // - - -This looks scary
   #endif
+
+    fflush(stream);
   /*Here is how it works:
   \033[     - This is the escape character
   %s        - This is the color code
@@ -406,6 +426,14 @@ JUST_API void justLogOutput(LogLevel LEVEL, const char* MESSAGE, ...)
 
   writeConsole(finalMessage, LEVEL);    
 }
+
+
+
+JUST_API void justLogSetOutputStream(FILE* OUTPUT_STREAM)
+{ stream = OUTPUT_STREAM; }
+
+JUST_API void justLogSetErrorStream(FILE* ERROR_STREAM)
+{ stream = ERROR_STREAM; }
 #endif
 
 // - - - Asserts (always defined) - - -
@@ -4830,6 +4858,20 @@ JUST_API bool justMkdir(const char* PATH);
 JUST_API bool justMkdirRecursive(const char* PATH);
 
 /**
+ * @brief : Removes an empty directory
+ * @param PATH : Directory path
+ * @return : true if successful, false otherwise
+ */
+JUST_API bool justRmdir(const char* PATH);
+
+/**
+ * @brief : Removes a directory and all its contents recursively
+ * @param PATH : Directory path
+ * @return : true if successful, false otherwise
+ */
+JUST_API bool justRmdirRecursive(const char* PATH);
+
+/**
  * @brief : removes a file at the given path 
  * @param PATH : File path 
  * @return : true if delted, false otherwise
@@ -5358,6 +5400,69 @@ JUST_API bool justMkdirRecursive(const char* PATH)
   }
 
   return true;
+}
+
+JUST_API bool justRmdir(const char* PATH)
+{
+  JUST_ASSERT_DEBUG(PATH != NULL);
+  return (rmdir(PATH) == 0);
+}
+
+JUST_API bool justRmdirRecursive(const char* PATH)
+{
+  JUST_ASSERT_DEBUG(PATH != NULL && PATH[0] != '\0');
+
+  if (!justIsDirectory(PATH))
+  {
+    return false;
+  }
+
+  DIR* dir = opendir(PATH);
+  if (!dir) return false;
+
+  bool success = true;
+  struct dirent* entry = NULL;
+
+  while ((entry = readdir(dir)) != NULL)
+  {
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+    {
+      continue;
+    }
+
+    char subPath[1024];
+    if (!justPathJoin(PATH, entry->d_name, subPath, sizeof(subPath)))
+    {
+      success = false;
+      break;
+    }
+
+    if (justIsDirectory(subPath))
+    {
+      if (!justRmdirRecursive(subPath))
+      {
+        success = false;
+        break;
+      }
+    }
+    else
+    {
+      if (unlink(subPath) != 0)
+      {
+        success = false;
+        break;
+      }
+    }
+  }
+
+  closedir(dir);
+
+  if (success)
+  {
+    success = (rmdir(PATH) == 0);
+  }
+
+  return success;
 }
 
 JUST_API bool justFileRemove(const char* PATH)

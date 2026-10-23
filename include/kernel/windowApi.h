@@ -20,3 +20,4 @@ typedef struct windowAPI
 #define JUST_WINDOW_API_SYMBOL "getWindowAPI"
 
 typedef const WindowAPI* (*GetWindowAPIFunc)(void);
+

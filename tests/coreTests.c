@@ -1,6 +1,5 @@
 #include <string.h>
-#define JUST_LIB_IMPL_ALL
-#include <kernel/justLibrary.h>
+#include <justLibrary.h>
 
 // ==========================================
 //              BITSET TESTS
@@ -68,3 +67,4 @@ int main(void)
 
   return justTestRunAll();
 }
+

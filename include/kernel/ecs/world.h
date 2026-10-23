@@ -5,7 +5,7 @@
  * @brief : Defines common ecs types
  */
 
-#include <kernel/justLibrary.h>
+#include <justLibrary.h>
 #include <stdint.h>
 #define MAX_COMPONENT_COUNT 64
 

@@ -48,3 +48,4 @@ int main(int argc, char** argv)
   if (!gameRun())                               { return 1; }
   return 0;
 }
+

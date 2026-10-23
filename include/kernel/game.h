@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kernel/justLibrary.h>
+#include <justLibrary.h>
 #include <stdint.h>
 
 

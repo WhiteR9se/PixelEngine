@@ -1,5 +1,4 @@
-#define JUST_LIB_IMPL_ALL
-#include <kernel/justLibrary.h>
+#include <justLibrary.h>
 #include <kernel/pluginManager.h>
 
 #ifndef PLUGIN_DIR
